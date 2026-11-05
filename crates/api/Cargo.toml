@@ -1,0 +1,27 @@
+[package]
+name = "api"
+description = "The SaveSpace HTTP API (axum). HTTP layer only; logic lives in domain crates."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+platform-observability.workspace = true
+savespace-core.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+serde_json.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

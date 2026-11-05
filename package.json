@@ -1,0 +1,20 @@
+{
+  "name": "savespace",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "wasm": "wasm-pack build bindings/wasm --target web --release --out-dir pkg --out-name savespace_core --scope savespace",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "diagrams": "pnpm --filter @savespace/diagrams diagrams"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.5"
+  }
+}

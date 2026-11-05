@@ -1,0 +1,6 @@
+# Tests may use unwrap and expect.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
+# Product and library names that are not code identifiers.
+doc-valid-idents = ["SaveSpace", "UniFFI", "ICU4X", "PostgreSQL", "OpenTelemetry", "XCFramework", ".."]
