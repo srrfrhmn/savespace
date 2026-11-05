@@ -1,6 +1,6 @@
-# SaveSpace
+# savespace
 
-A personal finance app that decreases financial anxiety. SaveSpace converts raw numbers into calm, true, contextual insights.
+An anxiety conscious personal finance app. SaveSpace converts raw numbers into calm, true, contextual insights.
 
 - [Design document](docs/design-doc.md)
 - [Diagrams](docs/diagrams/) (`.excalidraw` sources and `.svg` exports)
