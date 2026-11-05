@@ -1,0 +1,25 @@
+# Local development services. Start: docker compose up -d
+# CI uses the same PostgreSQL image (.github/workflows/ci.yml).
+# Development credentials only. Never use these values outside a local machine.
+
+name: savespace
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: savespace
+      POSTGRES_PASSWORD: savespace
+      POSTGRES_DB: savespace
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U savespace -d savespace"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:

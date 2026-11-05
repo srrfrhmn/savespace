@@ -1,0 +1,22 @@
+# Rust
+/target/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# WASM build output
+/bindings/wasm/pkg/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

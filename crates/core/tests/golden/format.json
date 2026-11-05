@@ -1,0 +1,23 @@
+{
+  "description": "Golden cases for format_money (en-US). Every platform MUST produce exactly these strings. Design doc §8.4 and Appendix B.3.",
+  "cases": [
+    { "minor": "180000", "currency": "USD", "expected": "$1,800" },
+    { "minor": "1549", "currency": "USD", "expected": "$15.49" },
+    { "minor": "5", "currency": "USD", "expected": "$0.05" },
+    { "minor": "0", "currency": "USD", "expected": "$0" },
+    { "minor": "-320", "currency": "USD", "expected": "-$3.20" },
+    { "minor": "21200", "currency": "USD", "expected": "$212" },
+    { "minor": "123456789", "currency": "USD", "expected": "$1,234,567.89" },
+    {
+      "minor": "-9223372036854775808",
+      "currency": "USD",
+      "expected": "-$92,233,720,368,547,758.08"
+    },
+    { "minor": "1800", "currency": "JPY", "expected": "¥1,800" },
+    { "minor": "9223372036854775807", "currency": "JPY", "expected": "¥9,223,372,036,854,775,807" },
+    { "minor": "99950", "currency": "EUR", "expected": "€999.50" },
+    { "minor": "100000", "currency": "GBP", "expected": "£1,000" },
+    { "minor": "4210", "currency": "CAD", "expected": "CA$42.10" },
+    { "minor": "-1", "currency": "AUD", "expected": "-A$0.01" }
+  ]
+}

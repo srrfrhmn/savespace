@@ -1,0 +1,23 @@
+# Code owners (design doc §14.5).
+# Sensitive paths are listed on their own so a second owner can be added later.
+# Changes to them need two approvals once the team has two owners.
+
+*                                   @srrfrhmn
+
+# Money math shared by every platform
+/crates/core/                       @srrfrhmn
+/bindings/                          @srrfrhmn
+
+# Database schema and migrations
+/crates/platform-db/migrations/     @srrfrhmn
+
+# Authentication, authorization, encryption
+/crates/domain-identity/            @srrfrhmn
+
+# Insight rules and copy (also need financial therapy review)
+/crates/domain-insights/            @srrfrhmn
+/evals/insights/                    @srrfrhmn
+
+# CI and supply chain
+/.github/                           @srrfrhmn
+/deny.toml                          @srrfrhmn
