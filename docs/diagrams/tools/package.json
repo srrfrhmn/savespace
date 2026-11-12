@@ -7,6 +7,6 @@
     "diagrams": "node build.mjs && node export.mjs"
   },
   "devDependencies": {
-    "playwright-core": "^1.64.1"
+    "playwright-core": "^1.65.0"
   }
 }
