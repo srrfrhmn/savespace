@@ -1,6 +1,7 @@
 # Copy to terraform.tfvars (git-ignored) and fill in.
 project_id           = "savespace-prod-XXXX"
 billing_account      = "XXXXXX-XXXXXX-XXXXXX"
+budget_currency      = "USD" # must match the billing account currency
 github_repository_id = "1009863521"
 plaid_client_id      = "your-plaid-client-id"
 plaid_env            = "sandbox"

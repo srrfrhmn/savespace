@@ -14,9 +14,10 @@ resource "google_billing_budget" "monthly" {
   }
 
   amount {
-    # No currency_code: the budget uses the billing account currency.
+    # Must match the billing account currency. Provider 8 defaults to USD.
     specified_amount {
-      units = tostring(var.budget_amount)
+      currency_code = var.budget_currency
+      units         = tostring(var.budget_amount)
     }
   }
 

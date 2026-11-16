@@ -19,6 +19,16 @@ variable "billing_account" {
   type        = string
 }
 
+variable "budget_currency" {
+  description = "The billing account currency (ISO 4217), for example USD or CAD. Find it with: gcloud billing accounts describe ACCOUNT_ID --format='value(currencyCode)'"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Z]{3}$", var.budget_currency))
+    error_message = "budget_currency must be a 3-letter ISO 4217 code, for example CAD."
+  }
+}
+
 variable "budget_amount" {
   description = "Monthly budget, in the billing account currency. Alerts go to billing admins at 1%, 50%, and 100%. A budget does not stop spend."
   type        = number
