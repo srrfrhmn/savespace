@@ -15,9 +15,6 @@ dependencies = [
 [[package]]
 name = "aggregator-plaid"
 version = "0.1.0"
-dependencies = [
- "domain-sync",
-]
 
 [[package]]
 name = "aho-corasick"
