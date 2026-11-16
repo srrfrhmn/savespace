@@ -6,24 +6,15 @@ default-members = ["crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.99"
+rust-version = "1.100"
 license = "UNLICENSED"
 publish = false
-repository = "https://github.com/srrfrhmn/savespace"
 
 [workspace.dependencies]
-# Internal crates
+# Internal crates. Add a domain crate here when another crate first depends on it.
 savespace-core = { path = "crates/core" }
 platform-db = { path = "crates/platform-db" }
 platform-observability = { path = "crates/platform-observability" }
-domain-identity = { path = "crates/domain-identity" }
-domain-ledger = { path = "crates/domain-ledger" }
-domain-sync = { path = "crates/domain-sync" }
-domain-categorize = { path = "crates/domain-categorize" }
-domain-recurring = { path = "crates/domain-recurring" }
-domain-insights = { path = "crates/domain-insights" }
-domain-notify = { path = "crates/domain-notify" }
-aggregator-plaid = { path = "crates/aggregator-plaid" }
 
 # Third-party crates. Pin versions here only.
 anyhow = "1.0.104"
