@@ -638,6 +638,40 @@
         }
       }
     },
+    "/exports": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Downloads all of the household's data as a zip of JSON and CSV. Needs\nstep-up.",
+        "operationId": "create_export",
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/insights": {
       "get": {
         "tags": [
@@ -865,11 +899,39 @@
           }
         }
       },
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Deletes the account and all data (design doc §12.5). Needs step-up.\nRemoves each bank connection at Plaid first. Then deletes the household,\nwhich also deletes the household data key, so encrypted values in backups\ncannot be read. Backups expire in 35 days.",
+        "operationId": "delete_account",
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "me"
         ],
-        "summary": "Changes display settings.",
+        "summary": "Changes settings.",
         "operationId": "update_me",
         "requestBody": {
           "content": {
@@ -1021,6 +1083,142 @@
             }
           },
           "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push/key": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Gets the VAPID public key.",
+        "operationId": "push_key",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushKey"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push/subscriptions": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Saves this browser's push subscription.",
+        "operationId": "subscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Subscription"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Removes this browser's push subscription.",
+        "operationId": "unsubscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Unsubscribe"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push/test": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Sends a test notification to the person's browsers.",
+        "operationId": "test_push",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestPush"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2246,6 +2444,7 @@
           "display_name",
           "time_zone",
           "calm_mode",
+          "notifications",
           "step_up_until",
           "passkeys",
           "recovery_codes_left"
@@ -2266,6 +2465,10 @@
           "id": {
             "type": "string",
             "description": "The user ID (`usr_…`)."
+          },
+          "notifications": {
+            "$ref": "#/components/schemas/NotificationSettings",
+            "description": "Notification settings."
           },
           "passkeys": {
             "type": "array",
@@ -2370,6 +2573,38 @@
           }
         }
       },
+      "NotificationSettings": {
+        "type": "object",
+        "description": "Notification settings (design doc §10.4).",
+        "required": [
+          "quiet_start",
+          "quiet_end",
+          "daily_limit",
+          "muted_kinds"
+        ],
+        "properties": {
+          "daily_limit": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Notifications a day, 0 to 5. Concerns always send."
+          },
+          "muted_kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Insight kinds not sent as notifications: `concern`, `anticipation`,\nor `awareness`."
+          },
+          "quiet_end": {
+            "type": "string",
+            "description": "Quiet hours end, `HH:MM` local."
+          },
+          "quiet_start": {
+            "type": "string",
+            "description": "Quiet hours start, `HH:MM` local."
+          }
+        }
+      },
       "Passkey": {
         "type": "object",
         "description": "A registered passkey.",
@@ -2412,6 +2647,19 @@
           "id": {
             "type": "string",
             "description": "The passkey ID (`pk_…`)."
+          }
+        }
+      },
+      "PushKey": {
+        "type": "object",
+        "description": "The application server key.",
+        "required": [
+          "public_key"
+        ],
+        "properties": {
+          "public_key": {
+            "type": "string",
+            "description": "Pass to `pushManager.subscribe({ applicationServerKey })`. Base64url."
           }
         }
       },
@@ -2833,6 +3081,56 @@
           }
         }
       },
+      "Subscription": {
+        "type": "object",
+        "description": "A browser push subscription (`PushSubscription.toJSON()`).",
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "The push service URL."
+          },
+          "keys": {
+            "$ref": "#/components/schemas/SubscriptionKeys",
+            "description": "The keys."
+          }
+        }
+      },
+      "SubscriptionKeys": {
+        "type": "object",
+        "description": "The keys of a push subscription.",
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "properties": {
+          "auth": {
+            "type": "string",
+            "description": "Base64url."
+          },
+          "p256dh": {
+            "type": "string",
+            "description": "Base64url."
+          }
+        }
+      },
+      "TestPush": {
+        "type": "object",
+        "description": "The result of a test push.",
+        "required": [
+          "delivered"
+        ],
+        "properties": {
+          "delivered": {
+            "type": "integer",
+            "description": "How many browsers accepted the test notification.",
+            "minimum": 0
+          }
+        }
+      },
       "Transaction": {
         "type": "object",
         "description": "A transaction with its category and the person's edits.",
@@ -2947,9 +3245,22 @@
           }
         }
       },
+      "Unsubscribe": {
+        "type": "object",
+        "description": "Which subscription to remove.",
+        "required": [
+          "endpoint"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "The push service URL."
+          }
+        }
+      },
       "UpdateMeRequest": {
         "type": "object",
-        "description": "Display settings. A field that is not in the body does not change.",
+        "description": "Settings. A field that is not in the body does not change.",
         "properties": {
           "calm_mode": {
             "type": [
@@ -2957,6 +3268,45 @@
               "null"
             ],
             "description": "Calm mode: hide exact balances until the person taps."
+          },
+          "notify_daily_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Notifications a day, 0 to 5. Concerns always send."
+          },
+          "notify_muted_kinds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Insight kinds not to send: `concern`, `anticipation`, `awareness`."
+          },
+          "quiet_end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Quiet hours end, `HH:MM`. Equal to the start turns quiet hours off."
+          },
+          "quiet_start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Quiet hours start, `HH:MM`."
+          },
+          "time_zone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An IANA time zone, for example `America/Chicago`."
           }
         },
         "additionalProperties": false

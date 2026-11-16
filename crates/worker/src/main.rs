@@ -55,6 +55,7 @@ async fn schedule(pool: &PgPool) {
         handlers::CLEANUP,
         domain_sync::POLL_JOB,
         domain_insights::DAILY_JOB,
+        domain_notify::service::DUE_JOB,
     ] {
         let mut job = NewJob::new(kind, serde_json::json!({}));
         job.dedupe_key = Some("periodic");
@@ -62,6 +63,18 @@ async fn schedule(pool: &PgPool) {
             tracing::warn!(error = %e, kind, "cannot enqueue a periodic job");
         }
     }
+}
+
+/// The VAPID key for Web Push, derived from `token-kek` (D13). `None` turns
+/// push off.
+pub(crate) fn vapid() -> Option<domain_notify::webpush::Vapid> {
+    let master = platform_crypto::Kek::try_from_env()?.subkey(b"vapid");
+    let subject = std::env::var("SAVESPACE_PUBLIC_ORIGIN")
+        .unwrap_or_else(|_| "https://savespace.invalid".to_owned());
+    Some(domain_notify::webpush::Vapid::derive(
+        master.as_ref(),
+        &subject,
+    ))
 }
 
 /// The handlers, with bank sync if Plaid is configured.
@@ -79,6 +92,7 @@ fn registry(pool: &PgPool) -> anyhow::Result<Registry> {
         recurring: domain_recurring::RecurringService::new(pool.clone()),
         ledger: domain_ledger::LedgerService::new(pool.clone()),
         insights: domain_insights::InsightService::new(pool.clone()),
+        notify: domain_notify::NotifyService::new(pool.clone(), vapid()),
     }))
 }
 

@@ -301,6 +301,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Downloads all of the household's data as a zip of JSON and CSV. Needs
+         *     step-up.
+         */
+        post: operations["create_export"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/insights": {
         parameters: {
             query?: never;
@@ -397,10 +417,16 @@ export interface paths {
         get: operations["get_me"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Deletes the account and all data (design doc §12.5). Needs step-up.
+         *     Removes each bank connection at Plaid first. Then deletes the household,
+         *     which also deletes the household data key, so encrypted values in backups
+         *     cannot be read. Backups expire in 35 days.
+         */
+        delete: operations["delete_account"];
         options?: never;
         head?: never;
-        /** Changes display settings. */
+        /** Changes settings. */
         patch: operations["update_me"];
         trace?: never;
     };
@@ -466,6 +492,58 @@ export interface paths {
         put?: never;
         /** Replaces the recovery codes with a new set. Needs step-up. */
         post: operations["regenerate_recovery_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gets the VAPID public key. */
+        get: operations["push_key"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Saves this browser's push subscription. */
+        post: operations["subscribe"];
+        /** Removes this browser's push subscription. */
+        delete: operations["unsubscribe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sends a test notification to the person's browsers. */
+        post: operations["test_push"];
         delete?: never;
         options?: never;
         head?: never;
@@ -966,6 +1044,8 @@ export interface components {
             household_id: string;
             /** @description The user ID (`usr_…`). */
             id: string;
+            /** @description Notification settings. */
+            notifications: components["schemas"]["NotificationSettings"];
             /** @description Registered passkeys. */
             passkeys: components["schemas"]["Passkey"][];
             /**
@@ -1013,6 +1093,23 @@ export interface components {
             /** @description Rule IDs. */
             data: string[];
         };
+        /** @description Notification settings (design doc §10.4). */
+        NotificationSettings: {
+            /**
+             * Format: int32
+             * @description Notifications a day, 0 to 5. Concerns always send.
+             */
+            daily_limit: number;
+            /**
+             * @description Insight kinds not sent as notifications: `concern`, `anticipation`,
+             *     or `awareness`.
+             */
+            muted_kinds: string[];
+            /** @description Quiet hours end, `HH:MM` local. */
+            quiet_end: string;
+            /** @description Quiet hours start, `HH:MM` local. */
+            quiet_start: string;
+        };
         /** @description A registered passkey. */
         Passkey: {
             /**
@@ -1034,6 +1131,11 @@ export interface components {
         PasskeyCreated: {
             /** @description The passkey ID (`pk_…`). */
             id: string;
+        };
+        /** @description The application server key. */
+        PushKey: {
+            /** @description Pass to `pushManager.subscribe({ applicationServerKey })`. Base64url. */
+            public_key: string;
         };
         /** @description Sign in with a recovery code. */
         RecoverRequest: {
@@ -1226,6 +1328,25 @@ export interface components {
              */
             step_up_until: string;
         };
+        /** @description A browser push subscription (`PushSubscription.toJSON()`). */
+        Subscription: {
+            /** @description The push service URL. */
+            endpoint: string;
+            /** @description The keys. */
+            keys: components["schemas"]["SubscriptionKeys"];
+        };
+        /** @description The keys of a push subscription. */
+        SubscriptionKeys: {
+            /** @description Base64url. */
+            auth: string;
+            /** @description Base64url. */
+            p256dh: string;
+        };
+        /** @description The result of a test push. */
+        TestPush: {
+            /** @description How many browsers accepted the test notification. */
+            delivered: number;
+        };
         /** @description A transaction with its category and the person's edits. */
         Transaction: {
             /** @description The account ID (`acct_…`). */
@@ -1270,10 +1391,28 @@ export interface components {
             /** @description True if more transactions follow. Pass the last ID as `starting_after`. */
             has_more: boolean;
         };
-        /** @description Display settings. A field that is not in the body does not change. */
+        /** @description Which subscription to remove. */
+        Unsubscribe: {
+            /** @description The push service URL. */
+            endpoint: string;
+        };
+        /** @description Settings. A field that is not in the body does not change. */
         UpdateMeRequest: {
             /** @description Calm mode: hide exact balances until the person taps. */
             calm_mode?: boolean | null;
+            /**
+             * Format: int32
+             * @description Notifications a day, 0 to 5. Concerns always send.
+             */
+            notify_daily_limit?: number | null;
+            /** @description Insight kinds not to send: `concern`, `anticipation`, `awareness`. */
+            notify_muted_kinds?: string[] | null;
+            /** @description Quiet hours end, `HH:MM`. Equal to the start turns quiet hours off. */
+            quiet_end?: string | null;
+            /** @description Quiet hours start, `HH:MM`. */
+            quiet_start?: string | null;
+            /** @description An IANA time zone, for example `America/Chicago`. */
+            time_zone?: string | null;
         };
         /**
          * @description The person's edits. A field that is not in the body does not change.
@@ -1837,6 +1976,33 @@ export interface operations {
             };
         };
     };
+    create_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": number[];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_insights: {
         parameters: {
             query?: {
@@ -2025,6 +2191,39 @@ export interface operations {
             };
         };
     };
+    delete_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     update_me: {
         parameters: {
             query?: never;
@@ -2157,6 +2356,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    push_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushKey"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Subscription"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Unsubscribe"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    test_push: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestPush"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             "4XX": {

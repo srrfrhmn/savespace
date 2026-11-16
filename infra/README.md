@@ -114,6 +114,7 @@ The next deploy sends traffic to the new revision again. Migrations do not roll 
 - **Sandbox test:** on the Accounts page, connect **First Platypus Bank** (the plain entry, not OAuth) with `user_good` / `pass_good`. To test webhooks, call Plaid `/sandbox/item/fire_webhook` with `SYNC_UPDATES_AVAILABLE` for the item.
 - **Check a sync:** worker logs show `sync finished` with counts. `SELECT status, error_code, last_synced_at FROM app.connections` (owner role) shows health.
 - **A connection needs the person:** status `login_required` or `pending_expiration`. The Accounts page shows **Sign in to your bank** (Plaid update mode).
+- **Web Push:** the VAPID key is derived from `token-kek` (D13), and the worker uses `SAVESPACE_PUBLIC_ORIGIN` as the VAPID contact. Rotating `token-kek` also changes the VAPID key: browsers must turn notifications on again.
 - **`token-kek`:** do not rotate it yet. Rotation needs a re-wrap of every household key (`app.households.dek_wrapped`). Losing it makes all stored Plaid tokens unreadable. Then remove and connect the banks again.
 
 ## Sign-in recovery

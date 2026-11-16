@@ -59,6 +59,9 @@ Status key: **Done** = built and tested. **Planned** = in a later milestone, wit
 | Elevation of privilege | A request uses another household's category, merchant, or rule ID. Foreign keys do not apply RLS. | `domain-ledger` and `domain-categorize` look up each ID inside the household's transaction (RLS applies) before they use it. Tests try another household's IDs in edits, splits, rules, and budget plans. | Done |
 | Information disclosure | Check-in notes leak from the database or backups. | Field-level encryption with the household data key (`Purpose::Note`, the household ID in the associated data). Notes never go to logs or to an LLM (§7.5). | Done |
 | Tampering | A wrong insight keeps showing to everyone. | Kill switch per rule (`app.insight_rule_flags`); the runtime role can read it but not change it. "This is wrong" hides an insight at once. | Done |
+| Elevation of privilege | A push subscription makes the server call an internal URL (SSRF). | Endpoints must be `https`, without a port, on an allowlist of push service hosts. Redirects are not followed. The check runs when saving and again before each send. | Done |
+| Information disclosure | Notifications show money details on a lock screen. | One sentence at most. In calm mode, no amounts or dates. Payloads are encrypted end to end (RFC 8291). | Done |
+| Information disclosure | Someone with a stolen session downloads all data or deletes the account. | Export and deletion need step-up (a passkey check in the last 5 minutes). The export leaves out secrets. | Done |
 | Tampering | A person's edit is lost or changed by automation. | Edits are an overlay (`user_overrides`). Enrichment never writes to it. A pending-to-posted change moves the edit. | Done |
 | Denial of service | A webhook flood starts many worker runs. | Webhooks must be signed. Worker starts are at most one per 20 seconds. The worker job runs one task at a time, and Cloud Run caps cost. | Done |
 

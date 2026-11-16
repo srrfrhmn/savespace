@@ -36,6 +36,8 @@ pub struct Me {
     pub time_zone: String,
     /// Calm mode: hide exact balances until the person taps.
     pub calm_mode: bool,
+    /// Notification settings.
+    pub notifications: NotificationSettings,
     /// Step-up actions are allowed until this time (RFC 3339). A time in the
     /// past means the person must confirm with a passkey first.
     #[schema(value_type = String, format = DateTime)]
@@ -44,6 +46,24 @@ pub struct Me {
     pub passkeys: Vec<Passkey>,
     /// Unused recovery codes.
     pub recovery_codes_left: i64,
+}
+
+/// Notification settings (design doc §10.4).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct NotificationSettings {
+    /// Quiet hours start, `HH:MM` local.
+    pub quiet_start: String,
+    /// Quiet hours end, `HH:MM` local.
+    pub quiet_end: String,
+    /// Notifications a day, 0 to 5. Concerns always send.
+    pub daily_limit: i16,
+    /// Insight kinds not sent as notifications: `concern`, `anticipation`,
+    /// or `awareness`.
+    pub muted_kinds: Vec<String>,
+}
+
+fn hh_mm(t: jiff::civil::Time) -> String {
+    format!("{:02}:{:02}", t.hour(), t.minute())
 }
 
 /// A registered passkey.
@@ -91,6 +111,12 @@ async fn get_me(State(state): State<AppState>, auth: Auth) -> Result<Json<Me>, A
         display_name: me.display_name,
         time_zone: me.time_zone,
         calm_mode: me.calm_mode,
+        notifications: NotificationSettings {
+            quiet_start: hh_mm(me.notifications.quiet_start),
+            quiet_end: hh_mm(me.notifications.quiet_end),
+            daily_limit: me.notifications.daily_limit,
+            muted_kinds: me.notifications.muted_kinds,
+        },
         step_up_until: me.step_up_until,
         passkeys: me
             .passkeys
@@ -106,15 +132,88 @@ async fn get_me(State(state): State<AppState>, auth: Auth) -> Result<Json<Me>, A
     }))
 }
 
-/// Display settings. A field that is not in the body does not change.
+/// Settings. A field that is not in the body does not change.
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateMeRequest {
     /// Calm mode: hide exact balances until the person taps.
     pub calm_mode: Option<bool>,
+    /// An IANA time zone, for example `America/Chicago`.
+    pub time_zone: Option<String>,
+    /// Quiet hours start, `HH:MM`.
+    pub quiet_start: Option<String>,
+    /// Quiet hours end, `HH:MM`. Equal to the start turns quiet hours off.
+    pub quiet_end: Option<String>,
+    /// Notifications a day, 0 to 5. Concerns always send.
+    pub notify_daily_limit: Option<i16>,
+    /// Insight kinds not to send: `concern`, `anticipation`, `awareness`.
+    pub notify_muted_kinds: Option<Vec<String>>,
 }
 
-/// Changes display settings.
+fn parse_time(value: &str, param: &'static str) -> Result<jiff::civil::Time, ApiError> {
+    let bad = || ApiError::invalid("time_invalid", format!("{param} must be HH:MM.")).param(param);
+    let (h, m) = value.split_once(':').ok_or_else(bad)?;
+    if h.len() != 2 || m.len() != 2 {
+        return Err(bad());
+    }
+    let (h, m): (i8, i8) = (h.parse().map_err(|_| bad())?, m.parse().map_err(|_| bad())?);
+    jiff::civil::Time::new(h, m, 0, 0).map_err(|_| bad())
+}
+
+impl UpdateMeRequest {
+    fn patch(self) -> Result<domain_identity::SettingsPatch, ApiError> {
+        if let Some(zone) = &self.time_zone
+            && (zone.len() > 64 || jiff::tz::TimeZone::get(zone).is_err())
+        {
+            return Err(
+                ApiError::invalid("time_zone_invalid", "That time zone is not known.")
+                    .param("time_zone"),
+            );
+        }
+        if self
+            .notify_daily_limit
+            .is_some_and(|n| !(0..=5).contains(&n))
+        {
+            return Err(
+                ApiError::invalid("limit_invalid", "Use 0 to 5.").param("notify_daily_limit")
+            );
+        }
+        if let Some(kinds) = &self.notify_muted_kinds
+            && (kinds.len() > 3
+                || kinds
+                    .iter()
+                    .any(|k| !domain_notify::service::NOTIFY_KINDS.contains(&k.as_str())))
+        {
+            return Err(ApiError::invalid(
+                "kinds_invalid",
+                "Use concern, anticipation, or awareness.",
+            )
+            .param("notify_muted_kinds"));
+        }
+        Ok(domain_identity::SettingsPatch {
+            calm_mode: self.calm_mode,
+            time_zone: self.time_zone,
+            quiet_start: self
+                .quiet_start
+                .as_deref()
+                .map(|t| parse_time(t, "quiet_start"))
+                .transpose()?,
+            quiet_end: self
+                .quiet_end
+                .as_deref()
+                .map(|t| parse_time(t, "quiet_end"))
+                .transpose()?,
+            daily_limit: self.notify_daily_limit,
+            muted_kinds: self.notify_muted_kinds.map(|mut k| {
+                k.sort();
+                k.dedup();
+                k
+            }),
+        })
+    }
+}
+
+/// Changes settings.
 #[utoipa::path(patch, path = "/me", tag = "me",
     request_body = UpdateMeRequest,
     responses((status = 200, body = Me), (status = "4XX", body = ErrorBody)))]
@@ -125,7 +224,7 @@ async fn update_me(
 ) -> Result<Json<Me>, ApiError> {
     state
         .identity
-        .update_settings(&auth.session, body.calm_mode)
+        .update_settings(&auth.session, &body.patch()?)
         .await?;
     get_me(State(state), auth).await
 }

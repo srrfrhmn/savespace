@@ -14,6 +14,7 @@ use domain_categorize::CategorizeService;
 use domain_insights::InsightService;
 use domain_insights::facts::MonthInput;
 use domain_ledger::LedgerService;
+use domain_notify::NotifyService;
 use domain_recurring::RecurringService;
 use domain_sync::{SyncError, SyncJob, SyncService};
 use platform_db::PgPool;
@@ -29,6 +30,7 @@ pub(crate) struct Ctx {
     pub(crate) recurring: RecurringService,
     pub(crate) ledger: LedgerService,
     pub(crate) insights: InsightService,
+    pub(crate) notify: NotifyService,
 }
 
 type HandlerFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
@@ -70,6 +72,12 @@ impl Registry {
         });
         handlers.insert(domain_insights::DAILY_JOB, |ctx, _| {
             Box::pin(daily_insights(ctx))
+        });
+        handlers.insert(domain_notify::service::SEND_JOB, |ctx, job| {
+            Box::pin(send_notifications(ctx, job))
+        });
+        handlers.insert(domain_notify::service::DUE_JOB, |ctx, _| {
+            Box::pin(due_notifications(ctx))
         });
         Self {
             ctx: Arc::new(ctx),
@@ -220,6 +228,43 @@ async fn generate_insights(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
         expired = outcome.expired,
         "insights generated"
     );
+    // New insights can become notifications (design doc §10.4).
+    let queued = ctx.notify.queue_from_insights(household_id).await?;
+    let sent = ctx.notify.send_due(household_id).await?;
+    tracing::info!(
+        queued,
+        sent = sent.sent,
+        delayed = sent.delayed,
+        "notifications"
+    );
+    Ok(())
+}
+
+/// `notify.household`: sends one household's due notifications.
+async fn send_notifications(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
+    let household_id = household_of(&job)?;
+    let sent = ctx.notify.send_due(household_id).await?;
+    tracing::info!(
+        sent = sent.sent,
+        delayed = sent.delayed,
+        dropped = sent.dropped,
+        "notifications"
+    );
+    Ok(())
+}
+
+/// `notify.due`: queues sends for notifications that quiet hours delayed.
+async fn due_notifications(ctx: Arc<Ctx>) -> anyhow::Result<()> {
+    let due = ctx.notify.households_due().await?;
+    for household_id in &due {
+        let key = household_id.to_string();
+        let mut job = NewJob::new(
+            domain_notify::service::SEND_JOB,
+            serde_json::json!({ "household_id": household_id }),
+        );
+        job.dedupe_key = Some(&key);
+        jobs::enqueue(&ctx.pool, &job).await?;
+    }
     Ok(())
 }
 

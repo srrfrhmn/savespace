@@ -673,6 +673,16 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 - If quiet hours block a notification, the worker delays it to the end of quiet hours. Notifications older than 24 hours expire, except `concern`.
 - Push text never includes balances unless the person turns this on.
 
+**Phase 1 implementation notes (M6).**
+
+- **What notifies.** New home-feed insights of kind `concern`, `anticipation`, and `awareness`, one notification per insight. Reassurance stays in the app. The worker queues them after each insight run and sends at once. An hourly job sends the ones quiet hours delayed.
+- **Policy at send time** (`domain-notify::policy`). Per-kind mute: skip. Older than 24 hours: expire, except `concern`. Quiet hours (they can cross midnight; start = end turns them off): wait until they end. Daily limit (0 to 5, default 1): skip, except `concern`. A concern counts toward the limit. An insight that was resolved, dismissed, or marked wrong before sending is skipped. The text is the first sentence of the insight. In calm mode it is a general sentence per kind with no amounts or dates.
+- **Web Push** (`domain-notify::webpush`, pure Rust). Messages use RFC 8291 (`aes128gcm`). VAPID (RFC 8292) tokens are ES256 and valid for 12 hours, with the app origin as `sub`. Tests check the RFC 8291 example byte for byte. Endpoints must be `https` on a known push service (FCM, Mozilla, Apple, Windows), so a client cannot make the server call other URLs. A 404 or 410 removes the subscription; 5 failures in a row also remove it.
+- **Settings.** `PATCH /v1/me`: calm mode, time zone (IANA, checked), quiet hours, daily limit, and muted kinds.
+- **Export** (`POST /v1/exports`, step-up). A zip made at request time: `data.json` (every table of the household, without secrets: the data key, access tokens, sync cursors, session and recovery code hashes, passkey keys, push keys) and `transactions.csv` (with edits; a leading `=`, `+`, `-`, or `@` gets a `'` so spreadsheets do not run it as a formula). Check-in notes are decrypted. This is faster than the 24-hour target in §12.5.
+- **Deletion** (`DELETE /v1/me`, step-up). Calls Plaid `/item/remove` for each connection first. A transient Plaid error stops the deletion and asks the person to try again. Then one transaction deletes the people and the household; foreign keys cascade every row, including the household data key, so encrypted values in backups cannot be read (crypto-shredding). A `household.deleted` audit row without personal data stays. Setup opens again.
+- **Required pages.** Help (the "not a medical service" statement, NFCC, 988), Privacy notice, and Settings, which also links to both.
+
 ---
 
 ## 11. API design
@@ -742,7 +752,8 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `POST` | `/v1/insights/{id}/feedback` | Send "wrong" or "not helpful". |
 | `POST` | `/v1/check_ins` | Record a check-in. Also `GET /v1/check_ins`. |
 | `GET` | `/v1/reflections/{week}` | Get the weekly reflection for the week that contains a date (`YYYY-MM-DD`). |
-| `POST` | `/v1/exports` | Start a data export. |
+| `POST` | `/v1/exports` | Download a data export (zip of JSON and CSV). Step-up authentication required. |
+| `GET` | `/v1/push/key` | The VAPID public key. Also `POST` and `DELETE /v1/push/subscriptions`, and `POST /v1/push/test`. |
 | `DELETE` | `/v1/me` | Delete the account and all data (step-up authentication required). |
 
 ---
@@ -1020,6 +1031,7 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | D10 | 2026-11-15 | MVP insight text uses templates only. LLM rephrase (Section 7.5) is off. | The Claude API has no free tier. Templates are already the fallback path (D5). Turn it on per rule later. |
 | D11 | 2026-11-15 | Phase 1 supports `en-US` and USD only. | One user. Hand-written formatting in `savespace-core` until ICU4X. |
 | D12 | 2026-11-16 | Phase 1 sign-in: passkeys plus 10 single-use recovery codes. No email fallback. A one-time setup code registers the first passkey, then setup closes. | One user. An email fallback needs an email vendor and a sending domain. Recovery codes need neither. |
+| D13 | 2026-11-16 | Phase 1 notifications: in-app insights plus Web Push (VAPID). No email or SMS. The VAPID key is derived from `token-kek` with HKDF (`Kek::subkey`), so it needs no new secret. | Free, no vendor, and the app is an installable PWA. A derived key keeps Secret Manager within the free 6 versions. Rotating `token-kek` changes the VAPID key; browsers then subscribe again. |
 | D14 | 2026-11-16 | Phase 1 categorization order: the person's edit, then the person's rules, then a mapping from the Plaid category. The ML model (§10.3) waits until enough categories are confirmed (Phase 2 or later). | One person's edits are too few to train a model. A fixed mapping is predictable and easy to test. |
 | D15 | 2026-11-17 | MVP live updates use polling (the web app polls a syncing connection every 3 s). SSE (§11.5) comes later. After a new connection or a webhook, the API starts the worker job right away through the Cloud Run Admin API. | Cloud Run throttles CPU between requests, and the scheduled worker runs once an hour. Without the start, the first sync could wait an hour. |
 

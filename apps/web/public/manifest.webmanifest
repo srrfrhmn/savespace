@@ -1,0 +1,11 @@
+{
+  "name": "SaveSpace",
+  "short_name": "SaveSpace",
+  "description": "A calm view of your money.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f4",
+  "theme_color": "#3f7d6e",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
