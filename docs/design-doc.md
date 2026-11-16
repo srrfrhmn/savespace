@@ -636,6 +636,15 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 - **Rules.** A rule matches a merchant or a text in the description, optionally only money in or money out. The newest rule has the highest priority. A rule for the same match replaces the old one. Creating or deleting a rule enriches the household again, so rules apply to past and future transactions.
 - **Tenancy.** Foreign keys do not apply row-level security. Every category, merchant, or rule ID in a request is checked with a query in the household's transaction before it is used.
 
+**Phase 1 implementation notes (M4).**
+
+- **Event chain.** `transactions.changed` starts `categorize.household`. When it changes a row, it writes `transactions.categorized`, which starts `recurring.household`. A person's category or hidden edit writes `transactions.edited`, which also starts `recurring.household`.
+- **Recurring detection** (`savespace_core::recurring`, integer math only). The input is 400 days of posted, visible transactions, without transfers, grouped by merchant, direction, and currency. The median gap picks the cadence: weekly (6–8 days), biweekly (12–16), monthly (27–34), or annual (355–375). Monthly needs 3 transactions, weekly and biweekly 4, annual 2. The amount band is ±10% of the median or ±2 × MAD (§7.4.3). Confidence = share of regular gaps × share of amounts in the band × a history factor. A series is stored at 0.5 or more and is "expected" at 0.8 or more. It is inactive if it missed its last date by more than its tolerance.
+- **Plans.** A plan applies from its month until a later plan changes it. Fixed and flexible plans are monthly. A non-monthly plan is yearly: 1/12 is set aside each month (`Money::allocate`, exact to the cent), and spending is compared with what was set aside so far this year. Rollover carries `plan − spent` from the month it was turned on, at most 24 months back. Refunds lower spending. A split counts in each part's category. Hidden transactions do not count.
+- **Calm state** (`savespace_core::budget::calm_state`, shared with WASM and UniFFI through a golden file). Cash is the available (or current) balance of checking and savings accounts. Bills are the expected recurring charges from today to the end of the month. `needs_attention` if cash < bills; `tight` if cash < bills + flexible plan left; else `covered`. Calm mode hides the amounts until the person taps. It never hides them for `needs_attention` (§5, Gentle exposure).
+- **Time.** "Today" is the date in the owner's time zone (`users.time_zone`). The server bundles the time zone database, so it does not depend on the container image.
+- **Currency.** One currency per household (`households.currency`, default USD) in Phase 1.
+
 ### 10.3 Categorization model
 
 - Input features: normalized merchant, MCC (if present), provider category, amount bucket, day of week, account type.
@@ -711,8 +720,10 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `PATCH` | `/v1/transactions/{id}` | Edit category, merchant, note, hidden. Also `GET /v1/transactions/{id}` and `PUT /v1/transactions/{id}/splits`. |
 | `GET` | `/v1/categories` | List categories. |
 | `POST` | `/v1/rules` | Create a categorization rule. It applies to past and future transactions. Also `GET /v1/rules` and `DELETE /v1/rules/{id}`. |
-| `GET` | `/v1/budgets/{month}` | Get the budget for a month. |
-| `PUT` | `/v1/budgets/{month}/categories/{id}` | Set the plan for a category. |
+| `GET` | `/v1/budgets/{month}` | Get the budget for a month (`YYYY-MM`), with the calm state for the current month. |
+| `PUT` | `/v1/budgets/{month}/categories/{id}` | Set the plan for a category from that month on, and rollover. |
+| `GET` | `/v1/recurring` | List recurring charges and income. |
+| `PATCH` | `/v1/me` | Change display settings (calm mode). |
 | `GET` | `/v1/insights` | List current insights for a view. |
 | `POST` | `/v1/insights/{id}/feedback` | Send "wrong" or "not helpful". |
 | `POST` | `/v1/check_ins` | Record a check-in. |

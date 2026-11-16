@@ -30,10 +30,20 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const SCHEDULE_INTERVAL: Duration = Duration::from_hours(1);
 
 /// Outbox topics and the jobs they start (§8.6).
-const SUBSCRIPTIONS: &[Subscription] = &[Subscription {
-    topic: domain_sync::TRANSACTIONS_CHANGED,
-    job_kind: domain_categorize::ENRICH_JOB,
-}];
+const SUBSCRIPTIONS: &[Subscription] = &[
+    Subscription {
+        topic: domain_sync::TRANSACTIONS_CHANGED,
+        job_kind: domain_categorize::ENRICH_JOB,
+    },
+    Subscription {
+        topic: domain_categorize::TRANSACTIONS_CATEGORIZED,
+        job_kind: domain_recurring::DETECT_JOB,
+    },
+    Subscription {
+        topic: domain_ledger::TRANSACTIONS_EDITED,
+        job_kind: domain_recurring::DETECT_JOB,
+    },
+];
 
 /// Enqueues the periodic jobs. The dedupe key keeps one queued job per kind.
 async fn schedule(pool: &PgPool) {
@@ -58,6 +68,7 @@ fn registry(pool: &PgPool) -> anyhow::Result<Registry> {
         pool: pool.clone(),
         sync,
         categorize: domain_categorize::CategorizeService::new(pool.clone()),
+        recurring: domain_recurring::RecurringService::new(pool.clone()),
     }))
 }
 

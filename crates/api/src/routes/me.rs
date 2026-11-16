@@ -16,7 +16,7 @@ use crate::{AppState, ids};
 /// Routes that need a session.
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .routes(routes!(get_me))
+        .routes(routes!(get_me, update_me))
         .routes(routes!(add_passkey_start))
         .routes(routes!(add_passkey_finish))
         .routes(routes!(delete_passkey))
@@ -104,6 +104,30 @@ async fn get_me(State(state): State<AppState>, auth: Auth) -> Result<Json<Me>, A
             .collect(),
         recovery_codes_left: me.recovery_codes_left,
     }))
+}
+
+/// Display settings. A field that is not in the body does not change.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateMeRequest {
+    /// Calm mode: hide exact balances until the person taps.
+    pub calm_mode: Option<bool>,
+}
+
+/// Changes display settings.
+#[utoipa::path(patch, path = "/me", tag = "me",
+    request_body = UpdateMeRequest,
+    responses((status = 200, body = Me), (status = "4XX", body = ErrorBody)))]
+async fn update_me(
+    State(state): State<AppState>,
+    auth: Auth,
+    Json(body): Json<UpdateMeRequest>,
+) -> Result<Json<Me>, ApiError> {
+    state
+        .identity
+        .update_settings(&auth.session, body.calm_mode)
+        .await?;
+    get_me(State(state), auth).await
 }
 
 /// Starts adding a passkey. Needs step-up.

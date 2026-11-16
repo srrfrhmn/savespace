@@ -28,6 +28,8 @@ pub const MERCHANT: &str = "mer";
 pub const SPLIT: &str = "spl";
 /// Categorization rule.
 pub const RULE: &str = "rule";
+/// Recurring series.
+pub const RECURRING: &str = "rec";
 
 /// Formats an ID with its prefix.
 pub fn encode(prefix: &str, id: Uuid) -> String {

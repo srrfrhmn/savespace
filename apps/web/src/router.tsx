@@ -9,7 +9,9 @@ import {
 import { meQuery } from "./auth/session";
 import { Accounts } from "./screens/accounts";
 import { Recover, Setup, SignIn } from "./screens/auth";
+import { Budget } from "./screens/budget";
 import { Home, Security } from "./screens/home";
+import { Recurring } from "./screens/recurring";
 import { Rules } from "./screens/rules";
 import { Transactions } from "./screens/transactions";
 
@@ -62,6 +64,20 @@ const transactionsRoute = createRoute({
   component: Transactions,
 });
 
+const budgetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/budget",
+  beforeLoad: requireSession,
+  component: Budget,
+});
+
+const recurringRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recurring",
+  beforeLoad: requireSession,
+  component: Recurring,
+});
+
 const rulesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/rules",
@@ -101,6 +117,8 @@ const routeTree = rootRoute.addChildren([
   accountsRoute,
   transactionsRoute,
   rulesRoute,
+  budgetRoute,
+  recurringRoute,
   securityRoute,
   signInRoute,
   recoverRoute,

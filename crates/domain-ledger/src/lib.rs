@@ -6,10 +6,16 @@
 //! applied last. Edits never change provider data. Splits divide one posted
 //! transaction across categories.
 
+pub mod budget;
+
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use sqlx::types::Json;
 use uuid::Uuid;
+
+/// The outbox topic after a person changed a transaction's category or
+/// hidden state.
+pub const TRANSACTIONS_EDITED: &str = "transactions.edited";
 
 /// The most parts in one split.
 pub const MAX_SPLITS: usize = 10;
@@ -439,6 +445,17 @@ impl LedgerService {
             .bind(&merchant)
             .bind(&text)
             .bind(hidden)
+            .execute(&mut *tx)
+            .await?;
+        }
+        if patch.category_id.is_some() || patch.hidden.is_some() {
+            sqlx::query(
+                "INSERT INTO app.outbox (topic, household_id, payload) \
+                 VALUES ($1, $2, jsonb_build_object('transaction_id', $3::uuid))",
+            )
+            .bind(TRANSACTIONS_EDITED)
+            .bind(household_id)
+            .bind(id)
             .execute(&mut *tx)
             .await?;
         }

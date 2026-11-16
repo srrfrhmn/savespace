@@ -20,6 +20,7 @@ domain-identity = { path = "crates/domain-identity" }
 domain-sync = { path = "crates/domain-sync" }
 domain-categorize = { path = "crates/domain-categorize" }
 domain-ledger = { path = "crates/domain-ledger" }
+domain-recurring = { path = "crates/domain-recurring" }
 aggregator-plaid = { path = "crates/aggregator-plaid" }
 
 # Third-party crates. Pin versions here only.
@@ -32,7 +33,7 @@ base64 = "0.23.1"
 cargo_metadata = "0.23.1"
 hex = "0.4.3"
 http-body-util = "0.1.5"
-jiff = { version = "1.0.0", features = ["serde"] }
+jiff = { version = "1.0.0", features = ["serde", "tzdb-bundle-always"] }
 jiff-sqlx = { version = "1.0.0", features = ["postgres"] }
 p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "std"] }
 proptest = "1.12.0"

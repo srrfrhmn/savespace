@@ -177,6 +177,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/budgets/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gets the budget for a month. */
+        get: operations["get_budget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/{month}/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets a category's plan from a month on. */
+        put: operations["set_plan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/categories": {
         parameters: {
             query?: never;
@@ -280,7 +314,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Changes display settings. */
+        patch: operations["update_me"];
         trace?: never;
     };
     "/me/passkeys/finish": {
@@ -345,6 +380,23 @@ export interface paths {
         put?: never;
         /** Replaces the recovery codes with a new set. Needs step-up. */
         post: operations["regenerate_recovery_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recurring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists recurring charges and income. */
+        get: operations["list_recurring"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -541,6 +593,49 @@ export interface components {
             /** @description The result of `navigator.credentials.get()`, in JSON form. */
             credential: Record<string, unknown>;
         };
+        /** @description Totals for one bucket. */
+        BucketTotals: {
+            /**
+             * Format: int64
+             * @description Left of the plans, over categories that have a plan.
+             */
+            left_minor: number;
+            /**
+             * Format: int64
+             * @description The sum of the plans. Non-monthly: set aside so far this year.
+             */
+            planned_minor: number;
+            /**
+             * Format: int64
+             * @description Spent. Non-monthly: spent so far this year.
+             */
+            spent_minor: number;
+        };
+        /** @description The calm state and the facts behind it. */
+        CalmState: {
+            /**
+             * Format: int64
+             * @description Expected recurring bills from today to `until`.
+             */
+            bills_minor: number;
+            /**
+             * Format: int64
+             * @description Cash in checking and savings.
+             */
+            cash_minor: number;
+            /**
+             * Format: int64
+             * @description Left of the flexible plan.
+             */
+            flex_left_minor: number;
+            /** @description `covered`, `tight`, or `needs_attention`. */
+            state: string;
+            /**
+             * Format: date
+             * @description The last day the bills cover (`YYYY-MM-DD`).
+             */
+            until: string;
+        };
         /** @description A category. */
         Category: {
             /** @description The category ID (`cat_…`). */
@@ -551,6 +646,46 @@ export interface components {
             name: string;
             /** @description Health, giving, and similar. SaveSpace is more careful with these. */
             sensitive: boolean;
+        };
+        /** @description One category in the month. */
+        CategoryBudget: {
+            /**
+             * Format: int64
+             * @description Carried in from earlier months (rollover).
+             */
+            carried_minor: number;
+            /** @description The category ID (`cat_…`). */
+            category_id: string;
+            /** @description `fixed`, `flex`, or `non_monthly`. */
+            kind: string;
+            /**
+             * Format: int64
+             * @description Left: plan + carried − spent. Non-monthly: set aside − spent this
+             *     year. Null if no plan.
+             */
+            left_minor?: number | null;
+            /**
+             * Format: int64
+             * @description The plan: monthly, or yearly for `non_monthly`. Null if no plan.
+             */
+            plan_minor?: number | null;
+            /** @description True if rollover is on. */
+            rollover: boolean;
+            /**
+             * Format: int64
+             * @description Non-monthly: set aside by the end of this month.
+             */
+            set_aside_minor?: number | null;
+            /**
+             * Format: int64
+             * @description Spent this month. Refunds lower it.
+             */
+            spent_minor: number;
+            /**
+             * Format: int64
+             * @description Non-monthly: spent from January to the end of this month.
+             */
+            spent_this_year_minor?: number | null;
         };
         /** @description The categories, in display order. */
         CategoryList: {
@@ -661,6 +796,32 @@ export interface components {
             /** @description The IANA time zone, for example `America/New_York`. */
             time_zone: string;
         };
+        /** @description The budget for one month. */
+        MonthBudget: {
+            calm?: components["schemas"]["CalmState"] | null;
+            /** @description Fixed, flexible, and non-monthly categories, in display order. */
+            categories: components["schemas"]["CategoryBudget"][];
+            /** @description ISO 4217 code. */
+            currency: string;
+            /** @description The fixed bucket. */
+            fixed: components["schemas"]["BucketTotals"];
+            /** @description The flexible bucket. */
+            flex: components["schemas"]["BucketTotals"];
+            /**
+             * Format: int64
+             * @description Money in, in income categories, this month.
+             */
+            income_minor: number;
+            /** @description The month (`YYYY-MM`). */
+            month: string;
+            /** @description The non-monthly bucket, year to date. */
+            non_monthly: components["schemas"]["BucketTotals"];
+            /**
+             * Format: int64
+             * @description Spent this month without a category.
+             */
+            uncategorized_minor: number;
+        };
         /** @description A registered passkey. */
         Passkey: {
             /**
@@ -692,6 +853,62 @@ export interface components {
         RecoveryCodes: {
             /** @description Ten codes in the form `XXXX-XXXX-XXXX`. */
             recovery_codes: string[];
+        };
+        /** @description Recurring series: active first, then by next date. */
+        RecurringList: {
+            /** @description The series. */
+            data: components["schemas"]["RecurringSeries"][];
+        };
+        /** @description A recurring charge or income. */
+        RecurringSeries: {
+            /** @description False if the series probably stopped. */
+            active: boolean;
+            /**
+             * Format: int64
+             * @description The typical amount. Negative is money out.
+             */
+            amount_minor: number;
+            /** @description `weekly`, `biweekly`, `monthly`, or `annual`. */
+            cadence: string;
+            /** @description The most common category (`cat_…`). */
+            category_id?: string | null;
+            /**
+             * Format: int32
+             * @description 0 to 10,000 basis points.
+             */
+            confidence_bp: number;
+            /** @description ISO 4217 code. */
+            currency: string;
+            /** @description `in` or `out`. */
+            direction: string;
+            /** @description True if SaveSpace calls it "expected": active and confident (§7.4.3). */
+            expected: boolean;
+            /** @description The series ID (`rec_…`). */
+            id: string;
+            /**
+             * Format: date
+             * @description The latest date (`YYYY-MM-DD`).
+             */
+            last_date: string;
+            /** @description The merchant ID (`mer_…`). */
+            merchant_id: string;
+            /** @description The merchant name. */
+            merchant_name: string;
+            /**
+             * Format: date
+             * @description The next expected date (`YYYY-MM-DD`).
+             */
+            next_date: string;
+            /**
+             * Format: int32
+             * @description How many transactions match.
+             */
+            occurrences: number;
+            /**
+             * Format: int64
+             * @description How far amounts usually are from the typical amount.
+             */
+            spread_minor: number;
         };
         /** @description A categorization rule. */
         Rule: {
@@ -731,6 +948,17 @@ export interface components {
             merchant_id?: string | null;
             /** @description Text in the description or merchant name, 2 to 100 characters. */
             name_contains?: string | null;
+        };
+        /** @description A plan change. A field that is not in the body does not change. */
+        SetPlanRequest: {
+            /**
+             * Format: int64
+             * @description The plan in minor units, from this month on: monthly, or yearly for a
+             *     non-monthly category. `null` ends the plan from this month.
+             */
+            plan_minor?: number | null;
+            /** @description Carry what is left into the next month. Fixed and flexible only. */
+            rollover?: boolean | null;
         };
         /** @description Finish owner setup. */
         SetupFinishRequest: {
@@ -831,6 +1059,11 @@ export interface components {
             data: components["schemas"]["Transaction"][];
             /** @description True if more transactions follow. Pass the last ID as `starting_after`. */
             has_more: boolean;
+        };
+        /** @description Display settings. A field that is not in the body does not change. */
+        UpdateMeRequest: {
+            /** @description Calm mode: hide exact balances until the person taps. */
+            calm_mode?: boolean | null;
         };
         /**
          * @description The person's edits. A field that is not in the body does not change.
@@ -1115,6 +1348,70 @@ export interface operations {
             };
         };
     };
+    get_budget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The month, `YYYY-MM`. */
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthBudget"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The month, `YYYY-MM`. */
+                month: string;
+                /** @description The category ID (`cat_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPlanRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_categories: {
         parameters: {
             query?: never;
@@ -1330,6 +1627,37 @@ export interface operations {
             };
         };
     };
+    update_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     add_passkey_finish: {
         parameters: {
             query?: never;
@@ -1434,6 +1762,33 @@ export interface operations {
                 };
             };
             "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_recurring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringList"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

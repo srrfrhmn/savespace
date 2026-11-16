@@ -3,8 +3,9 @@
 // (crates/core/tests/golden.rs).
 
 import { readFileSync } from "node:fs";
-import initCore, { formatMoney, parseMoney } from "@savespace/savespace-core-wasm";
+import initCore, { calmState, formatMoney, parseMoney } from "@savespace/savespace-core-wasm";
 import { beforeAll, describe, expect, it } from "vitest";
+import calmGolden from "../../../crates/core/tests/golden/calm_state.json" with { type: "json" };
 import golden from "../../../crates/core/tests/golden/format.json" with { type: "json" };
 import parseGolden from "../../../crates/core/tests/golden/parse_input.json" with { type: "json" };
 
@@ -37,6 +38,16 @@ describe("parseMoney (WASM) matches the golden file", () => {
       } else {
         expect(parseMoney(c.text, c.currency)).toBe(BigInt(c.expected));
       }
+    });
+  }
+});
+
+describe("calmState (WASM) matches the golden file", () => {
+  for (const c of calmGolden.cases) {
+    it(`${c.cash} ${c.bills} ${c.flex_left} -> ${c.expected}`, () => {
+      expect(calmState(BigInt(c.cash), BigInt(c.bills), BigInt(c.flex_left), c.currency)).toBe(
+        c.expected,
+      );
     });
   }
 });

@@ -1,0 +1,55 @@
+{
+  "description": "Golden cases for calm_state. cash, bills, and flex_left are minor units (strings). Every platform MUST give the same state. Design doc §6.1, §8.4.",
+  "cases": [
+    {
+      "cash": "100000",
+      "bills": "50000",
+      "flex_left": "30000",
+      "currency": "USD",
+      "expected": "covered"
+    },
+    {
+      "cash": "80000",
+      "bills": "50000",
+      "flex_left": "30000",
+      "currency": "USD",
+      "expected": "covered"
+    },
+    {
+      "cash": "79999",
+      "bills": "50000",
+      "flex_left": "30000",
+      "currency": "USD",
+      "expected": "tight"
+    },
+    {
+      "cash": "50000",
+      "bills": "50000",
+      "flex_left": "30000",
+      "currency": "USD",
+      "expected": "tight"
+    },
+    {
+      "cash": "49999",
+      "bills": "50000",
+      "flex_left": "0",
+      "currency": "USD",
+      "expected": "needs_attention"
+    },
+    {
+      "cash": "-2000",
+      "bills": "0",
+      "flex_left": "0",
+      "currency": "USD",
+      "expected": "needs_attention"
+    },
+    {
+      "cash": "60000",
+      "bills": "50000",
+      "flex_left": "-9000",
+      "currency": "USD",
+      "expected": "covered"
+    },
+    { "cash": "0", "bills": "0", "flex_left": "0", "currency": "USD", "expected": "covered" }
+  ]
+}

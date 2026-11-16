@@ -57,3 +57,35 @@ fn parse_money_input_matches_golden_file() {
         assert_eq!(actual, case.expected, "text={:?}", case.text);
     }
 }
+
+#[derive(Deserialize)]
+struct CalmFile {
+    cases: Vec<CalmCase>,
+}
+
+#[derive(Deserialize)]
+struct CalmCase {
+    cash: String,
+    bills: String,
+    flex_left: String,
+    currency: String,
+    expected: String,
+}
+
+#[test]
+fn calm_state_matches_golden_file() {
+    let raw = include_str!("golden/calm_state.json");
+    let golden: CalmFile = serde_json::from_str(raw).expect("valid golden file");
+    assert!(!golden.cases.is_empty());
+    for case in golden.cases {
+        let currency: Currency = case.currency.parse().expect("supported currency");
+        let money = |s: &str| Money::from_minor(s.parse().expect("i64"), currency);
+        let state = savespace_core::budget::calm_state(
+            money(&case.cash),
+            money(&case.bills),
+            money(&case.flex_left),
+        )
+        .expect("same currency");
+        assert_eq!(state.as_str(), case.expected, "cash={}", case.cash);
+    }
+}

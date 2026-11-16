@@ -106,6 +106,14 @@ export function describeError(error: unknown): string {
         return "Use up to 500 characters for the note.";
       case "merchant_name_invalid":
         return "Use up to 100 characters for the merchant name.";
+      case "plan_invalid":
+        return "Use an amount of 0 or more.";
+      case "category_not_budgeted":
+        return "Income and transfers do not have a plan.";
+      case "rollover_not_available":
+        return "Non-monthly categories already carry their savings through the year.";
+      case "month_invalid":
+        return "That month is not valid.";
       case "too_many_rules":
         return "You have the most rules SaveSpace allows. Delete one first.";
       case "rule_target_invalid":

@@ -304,6 +304,97 @@
         }
       }
     },
+    "/budgets/{month}": {
+      "get": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Gets the budget for a month.",
+        "operationId": "get_budget",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "path",
+            "description": "The month, `YYYY-MM`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthBudget"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/budgets/{month}/categories/{id}": {
+      "put": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Sets a category's plan from a month on.",
+        "operationId": "set_plan",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "path",
+            "description": "The month, `YYYY-MM`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The category ID (`cat_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/categories": {
       "get": {
         "tags": [
@@ -547,6 +638,43 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Changes display settings.",
+        "operationId": "update_me",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/me/passkeys/finish": {
@@ -667,6 +795,35 @@
             }
           },
           "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recurring": {
+      "get": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Lists recurring charges and income.",
+        "operationId": "list_recurring",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringList"
+                }
+              }
+            }
+          },
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1243,6 +1400,69 @@
           }
         }
       },
+      "BucketTotals": {
+        "type": "object",
+        "description": "Totals for one bucket.",
+        "required": [
+          "planned_minor",
+          "spent_minor",
+          "left_minor"
+        ],
+        "properties": {
+          "left_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Left of the plans, over categories that have a plan."
+          },
+          "planned_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The sum of the plans. Non-monthly: set aside so far this year."
+          },
+          "spent_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Spent. Non-monthly: spent so far this year."
+          }
+        }
+      },
+      "CalmState": {
+        "type": "object",
+        "description": "The calm state and the facts behind it.",
+        "required": [
+          "state",
+          "cash_minor",
+          "bills_minor",
+          "flex_left_minor",
+          "until"
+        ],
+        "properties": {
+          "bills_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Expected recurring bills from today to `until`."
+          },
+          "cash_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cash in checking and savings."
+          },
+          "flex_left_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Left of the flexible plan."
+          },
+          "state": {
+            "type": "string",
+            "description": "`covered`, `tight`, or `needs_attention`."
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "description": "The last day the bills cover (`YYYY-MM-DD`)."
+          }
+        }
+      },
       "Category": {
         "type": "object",
         "description": "A category.",
@@ -1268,6 +1488,73 @@
           "sensitive": {
             "type": "boolean",
             "description": "Health, giving, and similar. SaveSpace is more careful with these."
+          }
+        }
+      },
+      "CategoryBudget": {
+        "type": "object",
+        "description": "One category in the month.",
+        "required": [
+          "category_id",
+          "kind",
+          "carried_minor",
+          "spent_minor",
+          "rollover"
+        ],
+        "properties": {
+          "carried_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Carried in from earlier months (rollover)."
+          },
+          "category_id": {
+            "type": "string",
+            "description": "The category ID (`cat_…`)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`fixed`, `flex`, or `non_monthly`."
+          },
+          "left_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Left: plan + carried − spent. Non-monthly: set aside − spent this\nyear. Null if no plan."
+          },
+          "plan_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The plan: monthly, or yearly for `non_monthly`. Null if no plan."
+          },
+          "rollover": {
+            "type": "boolean",
+            "description": "True if rollover is on."
+          },
+          "set_aside_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Non-monthly: set aside by the end of this month."
+          },
+          "spent_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Spent this month. Refunds lower it."
+          },
+          "spent_this_year_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Non-monthly: spent from January to the end of this month."
           }
         }
       },
@@ -1539,6 +1826,70 @@
           }
         }
       },
+      "MonthBudget": {
+        "type": "object",
+        "description": "The budget for one month.",
+        "required": [
+          "month",
+          "currency",
+          "categories",
+          "fixed",
+          "flex",
+          "non_monthly",
+          "income_minor",
+          "uncategorized_minor"
+        ],
+        "properties": {
+          "calm": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CalmState",
+                "description": "The calm state. Only for the current month, and only with a checking\nor savings account."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryBudget"
+            },
+            "description": "Fixed, flexible, and non-monthly categories, in display order."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 code."
+          },
+          "fixed": {
+            "$ref": "#/components/schemas/BucketTotals",
+            "description": "The fixed bucket."
+          },
+          "flex": {
+            "$ref": "#/components/schemas/BucketTotals",
+            "description": "The flexible bucket."
+          },
+          "income_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Money in, in income categories, this month."
+          },
+          "month": {
+            "type": "string",
+            "description": "The month (`YYYY-MM`)."
+          },
+          "non_monthly": {
+            "$ref": "#/components/schemas/BucketTotals",
+            "description": "The non-monthly bucket, year to date."
+          },
+          "uncategorized_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Spent this month without a category."
+          }
+        }
+      },
       "Passkey": {
         "type": "object",
         "description": "A registered passkey.",
@@ -1610,6 +1961,113 @@
               "type": "string"
             },
             "description": "Ten codes in the form `XXXX-XXXX-XXXX`."
+          }
+        }
+      },
+      "RecurringList": {
+        "type": "object",
+        "description": "Recurring series: active first, then by next date.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecurringSeries"
+            },
+            "description": "The series."
+          }
+        }
+      },
+      "RecurringSeries": {
+        "type": "object",
+        "description": "A recurring charge or income.",
+        "required": [
+          "id",
+          "merchant_id",
+          "merchant_name",
+          "direction",
+          "currency",
+          "cadence",
+          "amount_minor",
+          "spread_minor",
+          "last_date",
+          "next_date",
+          "occurrences",
+          "confidence_bp",
+          "active",
+          "expected"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "False if the series probably stopped."
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The typical amount. Negative is money out."
+          },
+          "cadence": {
+            "type": "string",
+            "description": "`weekly`, `biweekly`, `monthly`, or `annual`."
+          },
+          "category_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The most common category (`cat_…`)."
+          },
+          "confidence_bp": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 to 10,000 basis points."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 code."
+          },
+          "direction": {
+            "type": "string",
+            "description": "`in` or `out`."
+          },
+          "expected": {
+            "type": "boolean",
+            "description": "True if SaveSpace calls it \"expected\": active and confident (§7.4.3)."
+          },
+          "id": {
+            "type": "string",
+            "description": "The series ID (`rec_…`)."
+          },
+          "last_date": {
+            "type": "string",
+            "format": "date",
+            "description": "The latest date (`YYYY-MM-DD`)."
+          },
+          "merchant_id": {
+            "type": "string",
+            "description": "The merchant ID (`mer_…`)."
+          },
+          "merchant_name": {
+            "type": "string",
+            "description": "The merchant name."
+          },
+          "next_date": {
+            "type": "string",
+            "format": "date",
+            "description": "The next expected date (`YYYY-MM-DD`)."
+          },
+          "occurrences": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many transactions match."
+          },
+          "spread_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How far amounts usually are from the typical amount."
           }
         }
       },
@@ -1695,6 +2153,28 @@
               "null"
             ],
             "description": "Text in the description or merchant name, 2 to 100 characters."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetPlanRequest": {
+        "type": "object",
+        "description": "A plan change. A field that is not in the body does not change.",
+        "properties": {
+          "plan_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The plan in minor units, from this month on: monthly, or yearly for a\nnon-monthly category. `null` ends the plan from this month."
+          },
+          "rollover": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Carry what is left into the next month. Fixed and flexible only."
           }
         },
         "additionalProperties": false
@@ -1942,6 +2422,20 @@
           }
         }
       },
+      "UpdateMeRequest": {
+        "type": "object",
+        "description": "Display settings. A field that is not in the body does not change.",
+        "properties": {
+          "calm_mode": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Calm mode: hide exact balances until the person taps."
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateTransactionRequest": {
         "type": "object",
         "description": "The person's edits. A field that is not in the body does not change.\n`null` clears it.",
@@ -1995,6 +2489,10 @@
     {
       "name": "transactions",
       "description": "Transactions, categories, and categorization rules."
+    },
+    {
+      "name": "budget",
+      "description": "The flex budget, the calm state, and recurring series."
     },
     {
       "name": "webhooks",

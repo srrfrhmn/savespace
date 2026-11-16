@@ -29,6 +29,9 @@ pub use rules::{CompiledRule, Decision, Direction, Facts, RuleMatch, RuleMatchEr
 /// The job kind that enriches one household's new transactions.
 pub const ENRICH_JOB: &str = "categorize.household";
 
+/// The outbox topic after transactions got a merchant or category.
+pub const TRANSACTIONS_CATEGORIZED: &str = "transactions.categorized";
+
 /// A household can have this many rules.
 pub const MAX_RULES: i64 = 500;
 
@@ -334,19 +337,7 @@ impl CategorizeService {
         .await?
         .into_iter()
         .collect();
-        let rules: Vec<CompiledRule> =
-            sqlx::query_as::<_, (Uuid, sqlx::types::Json<RuleMatch>, Uuid)>(
-                "SELECT id, match, category_id FROM app.rules ORDER BY priority DESC, id DESC",
-            )
-            .fetch_all(&mut *tx)
-            .await?
-            .into_iter()
-            .map(|(id, matcher, category_id)| CompiledRule {
-                id,
-                matcher: matcher.0,
-                category_id,
-            })
-            .collect();
+        let rules = Self::compiled_rules(&mut tx).await?;
 
         let found = Self::resolve_merchants(&mut tx, &rows).await?;
         let merchant_ids = Self::upsert_merchants(&mut tx, household_id, &found).await?;
@@ -405,8 +396,35 @@ impl CategorizeService {
         .execute(&mut *tx)
         .await?
         .rows_affected();
+        if updated > 0 {
+            sqlx::query(
+                "INSERT INTO app.outbox (topic, household_id, payload) VALUES ($1, $2, $3)",
+            )
+            .bind(TRANSACTIONS_CATEGORIZED)
+            .bind(household_id)
+            .bind(json!({ "updated": updated }))
+            .execute(&mut *tx)
+            .await?;
+        }
         tx.commit().await?;
         Ok((selected, updated))
+    }
+
+    /// The household's rules, highest priority first.
+    async fn compiled_rules(conn: &mut sqlx::PgConnection) -> Result<Vec<CompiledRule>> {
+        let rows: Vec<(Uuid, sqlx::types::Json<RuleMatch>, Uuid)> = sqlx::query_as(
+            "SELECT id, match, category_id FROM app.rules ORDER BY priority DESC, id DESC",
+        )
+        .fetch_all(conn)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, matcher, category_id)| CompiledRule {
+                id,
+                matcher: matcher.0,
+                category_id,
+            })
+            .collect())
     }
 
     /// Normalizes the merchant of each row. A description that starts with a
