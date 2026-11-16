@@ -6,15 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": [
-      "**",
-      "!**/pkg",
-      "!**/dist",
-      "!docs/diagrams",
-      "!target",
-      "!**/*.md",
-      "!clients"
-    ]
+    "includes": ["**", "!**/pkg", "!**/dist", "!docs/diagrams", "!target", "!**/*.md", "!clients"]
   },
   "formatter": {
     "enabled": true,
