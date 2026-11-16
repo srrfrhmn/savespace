@@ -14,7 +14,7 @@ The MVP runs on Google Cloud and Neon at $0 per month (design doc §8.8). This f
 | CI/CD | GitHub Actions (public repository) | No limit |
 | Logs | Cloud Logging (`SAVESPACE_LOG_FORMAT=gcp`) | 50 GiB per month |
 
-Cost controls: max 1 Cloud Run instance, CPU only during requests, job timeouts, image cleanup, and a $1 budget with an alert at the first cent. A budget does not stop spend.
+Cost controls: max 1 Cloud Run instance, CPU only during requests, job timeouts, image cleanup, and a budget of 1 (in the billing account currency) with an alert at the first cent. A budget does not stop spend.
 
 ## Layout
 
@@ -48,7 +48,7 @@ Do these steps once, in order. Commands use Bash and run from the repository roo
    terraform init -backend-config="bucket=savespace-prod-XXXX-tfstate"
    terraform apply
    ```
-5. **Secrets.** Neon setup creates the database and both URLs. Then add the Plaid secret and the token key.
+5. **Secrets.** Neon setup creates the database and both URLs. If your Neon account has more than one organization, set `NEON_ORG_ID` first. Then add the Plaid secret and the token key.
    ```sh
    infra/scripts/neon-setup.sh
    printf '%s' "$PLAID_SECRET" | infra/scripts/set-secret.sh plaid-secret
@@ -78,7 +78,7 @@ After this, every push to `main` that passes CI deploys.
 
 Migrations run before the new code, so they must be backward compatible: expand and contract (design doc §9.3).
 
-Manual deploy: Actions → deploy → Run workflow (on `main` only).
+Manual deploy: Actions → deploy → Run workflow (on `main` only). Image tags are immutable: if the commit already has an image, the workflow deploys it without a new build.
 
 ## Roll back
 
