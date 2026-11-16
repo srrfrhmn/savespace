@@ -78,6 +78,8 @@ After this, every push to `main` that passes CI deploys.
 
 Migrations run before the new code, so they must be backward compatible: expand and contract (design doc §9.3).
 
+Only the newest commit on `main` deploys. If CI for an older commit finishes after a newer one, its deploy is skipped, so production never moves backward.
+
 Manual deploy: Actions → deploy → Run workflow (on `main` only). Image tags are immutable: if the commit already has an image, the workflow deploys it without a new build.
 
 ## Roll back

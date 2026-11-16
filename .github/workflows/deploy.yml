@@ -22,12 +22,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # CI runs for two quick pushes can finish out of order. Deploy a commit only
+  # if it is still the newest on main, so an older run cannot roll back
+  # production. A manual run deploys the commit it runs on.
+  gate:
     # Skip until infra/scripts/github-setup.sh has set the repository variables.
     if: >-
       vars.GCP_PROJECT_ID != '' && (
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-24.04
+    outputs:
+      deploy: ${{ steps.newest.outputs.deploy }}
+    steps:
+      - name: Is this the newest commit on main?
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          head=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] || [ "${head}" = "${SHA}" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skip ${SHA}: main is at ${head}. The newer commit deploys after its CI passes."
+          fi
+
+  deploy:
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-24.04
     environment:
       name: production
