@@ -1,4 +1,4 @@
-# Budget alert. The MVP target is $0, so the first alert is at 1% of $1.
+# Budget alert. The MVP target is $0, so the first alert is at 1% of the budget.
 #
 # A budget sends email. It does not stop spend. The limits that stop spend are:
 # Cloud Run max one instance, request-based CPU, job timeouts, and the
@@ -14,9 +14,9 @@ resource "google_billing_budget" "monthly" {
   }
 
   amount {
+    # No currency_code: the budget uses the billing account currency.
     specified_amount {
-      currency_code = "USD"
-      units         = tostring(var.budget_usd)
+      units = tostring(var.budget_amount)
     }
   }
 

@@ -17,11 +17,19 @@ here=$(cd "$(dirname "$0")" && pwd)
 neon() { npx --yes neonctl@9.5.0 "$@"; }
 json() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const v=JSON.parse(s);console.log(eval(process.argv[1])??"")})' "$1"; }
 
+# neonctl asks for an organization when it cannot choose one. Pass it.
+# If your account has more than one organization, set NEON_ORG_ID.
+if [ -z "${NEON_ORG_ID:-}" ]; then
+  NEON_ORG_ID=$(neon orgs list --output json \
+    | json '(()=>{const o=v.organizations??v;if(o.length!==1)throw new Error("set NEON_ORG_ID");return o[0].id})()')
+fi
+echo "Neon organization: ${NEON_ORG_ID}"
+
 name=savespace
-project_id=$(neon projects list --output json | json "(v.projects??v).find(p=>p.name==='${name}')?.id")
+project_id=$(neon projects list --org-id "$NEON_ORG_ID" --output json | json "(v.projects??v).find(p=>p.name==='${name}')?.id")
 if [ -z "$project_id" ]; then
   echo "Creating Neon project ${name} (PostgreSQL 18, aws-us-east-1)"
-  project_id=$(neon projects create --name "$name" --region-id aws-us-east-1 --pg-version 18 \
+  project_id=$(neon projects create --org-id "$NEON_ORG_ID" --name "$name" --region-id aws-us-east-1 --pg-version 18 \
     --database savespace --role savespace_owner --cu 0.25 --no-secrets --output json \
     | json 'v.project.id')
 fi

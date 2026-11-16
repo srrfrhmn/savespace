@@ -73,29 +73,41 @@ resource "google_artifact_registry_repository" "images" {
 resource "google_service_account" "api" {
   account_id   = "savespace-api"
   display_name = "SaveSpace API (Cloud Run service)"
+
+  depends_on = [google_project_service.this]
 }
 
 resource "google_service_account" "worker" {
   account_id   = "savespace-worker"
   display_name = "SaveSpace worker (Cloud Run job)"
+
+  depends_on = [google_project_service.this]
 }
 
 resource "google_service_account" "migrate" {
   account_id   = "savespace-migrate"
   display_name = "SaveSpace migrations (Cloud Run job)"
+
+  depends_on = [google_project_service.this]
 }
 
 resource "google_service_account" "scheduler" {
   account_id   = "savespace-scheduler"
   display_name = "Cloud Scheduler: starts the worker job"
+
+  depends_on = [google_project_service.this]
 }
 
 resource "google_service_account" "deployer" {
   account_id   = "savespace-deployer"
   display_name = "GitHub Actions: deploy workflow"
+
+  depends_on = [google_project_service.this]
 }
 
 resource "google_service_account" "backup" {
   account_id   = "savespace-backup"
   display_name = "GitHub Actions: backup workflow"
+
+  depends_on = [google_project_service.this]
 }

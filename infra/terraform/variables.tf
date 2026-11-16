@@ -19,8 +19,8 @@ variable "billing_account" {
   type        = string
 }
 
-variable "budget_usd" {
-  description = "Monthly budget in USD. Alerts go to billing admins at 1%, 50%, and 100%. A budget does not stop spend."
+variable "budget_amount" {
+  description = "Monthly budget, in the billing account currency. Alerts go to billing admins at 1%, 50%, and 100%. A budget does not stop spend."
   type        = number
   default     = 1
 }
