@@ -228,6 +228,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/check_ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the person's latest check-ins. */
+        get: operations["list_check_ins"];
+        put?: never;
+        /** Saves a check-in. */
+        post: operations["create_check_in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/connections": {
         parameters: {
             query?: never;
@@ -277,6 +295,74 @@ export interface paths {
         put?: never;
         /** Starts a sync now. */
         post: operations["sync_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the current insights for a view. */
+        get: operations["list_insights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/mutes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the rules the person muted. */
+        get: operations["list_mutes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/mutes/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unmutes a rule. */
+        delete: operations["unmute"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/{id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sends feedback. The insight is hidden at once. */
+        post: operations["send_feedback"];
         delete?: never;
         options?: never;
         head?: never;
@@ -395,6 +481,23 @@ export interface paths {
         };
         /** Lists recurring charges and income. */
         get: operations["list_recurring"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reflections/{week}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gets the weekly reflection for the week that contains a date. */
+        get: operations["get_reflection"];
         put?: never;
         post?: never;
         delete?: never;
@@ -702,6 +805,33 @@ export interface components {
              */
             options: Record<string, unknown>;
         };
+        /** @description A check-in. */
+        CheckIn: {
+            /**
+             * Format: date-time
+             * @description When it was saved (RFC 3339).
+             */
+            created_at: string;
+            /**
+             * Format: date
+             * @description The day (`YYYY-MM-DD`) in the person's time zone.
+             */
+            date: string;
+            /** @description The check-in ID (`chk_…`). */
+            id: string;
+            /** @description The note. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description 1 to 5.
+             */
+            score: number;
+        };
+        /** @description Check-ins, newest first. */
+        CheckInList: {
+            /** @description The latest 30. */
+            data: components["schemas"]["CheckIn"][];
+        };
         /** @description A bank connection. */
         Connection: {
             /**
@@ -728,6 +858,16 @@ export interface components {
             /** @description The connections, oldest first. */
             data: components["schemas"]["Connection"][];
         };
+        /** @description "How do you feel about money today?" */
+        CreateCheckInRequest: {
+            /** @description An optional note, up to 500 characters. Stored encrypted. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description 1 to 5.
+             */
+            score: number;
+        };
         /** @description Connect accounts with the result of Plaid Link. */
         CreateConnectionRequest: {
             institution?: components["schemas"]["Institution"] | null;
@@ -751,6 +891,52 @@ export interface components {
          * @enum {string}
          */
         ErrorType: "invalid_request_error" | "authentication_error" | "permission_error" | "not_found_error" | "rate_limit_error" | "api_error";
+        /** @description "This is wrong" or "Not helpful". */
+        FeedbackRequest: {
+            /** @description `wrong` or `not_helpful`. */
+            kind: string;
+            /** @description For `wrong`: `amount`, `merchant`, `category`, `date`, or `other`. */
+            reason?: string | null;
+        };
+        /** @description The result of feedback. */
+        FeedbackResult: {
+            /** @description True if this rule is now muted (3 "Not helpful" in 30 days). */
+            muted: boolean;
+        };
+        /** @description An insight. */
+        Insight: {
+            /**
+             * Format: date-time
+             * @description When it was made (RFC 3339).
+             */
+            created_at: string;
+            /** @description The facts the text uses ("Why am I seeing this?"). */
+            facts: components["schemas"]["InsightFact"][];
+            /** @description The insight ID (`ins_…`). */
+            id: string;
+            /** @description `reassurance`, `awareness`, `anticipation`, `suggestion`, or `concern`. */
+            kind: string;
+            /** @description The rule, for example `spend.week_below_usual`. */
+            rule_id: string;
+            /** @description The text. */
+            text: string;
+            /** @description The transaction (`txn_…`), for insights about one transaction. */
+            transaction_id?: string | null;
+        };
+        /** @description One fact behind an insight. */
+        InsightFact: {
+            /** @description A stable key, for example `wtd_spend_minor`. */
+            key: string;
+            /** @description A label for the person. */
+            label: string;
+            /** @description The value as the text shows it. */
+            value: string;
+        };
+        /** @description Insights for a view. */
+        InsightList: {
+            /** @description At most 3, besides extra concerns (§7.1). Concerns first. */
+            data: components["schemas"]["Insight"][];
+        };
         /** @description An institution. */
         Institution: {
             /** @description The provider's institution ID. */
@@ -821,6 +1007,11 @@ export interface components {
              * @description Spent this month without a category.
              */
             uncategorized_minor: number;
+        };
+        /** @description Muted rules. */
+        MuteList: {
+            /** @description Rule IDs. */
+            data: string[];
         };
         /** @description A registered passkey. */
         Passkey: {
@@ -909,6 +1100,25 @@ export interface components {
              * @description How far amounts usually are from the typical amount.
              */
             spread_minor: number;
+        };
+        /** @description The weekly reflection. */
+        Reflection: {
+            /** @description At most 5 cards. The last one is a positive or neutral fact. */
+            cards: components["schemas"]["ReflectionCard"][];
+            /** @description True while the week is not over. */
+            partial: boolean;
+            /**
+             * Format: date
+             * @description The Monday of the week (`YYYY-MM-DD`).
+             */
+            week_start: string;
+        };
+        /** @description One reflection card. */
+        ReflectionCard: {
+            /** @description The text. */
+            text: string;
+            /** @description `positive`, `neutral`, or `higher`. The last card is never `higher`. */
+            tone: string;
         };
         /** @description A categorization rule. */
         Rule: {
@@ -1439,6 +1649,72 @@ export interface operations {
             };
         };
     };
+    list_check_ins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_check_in: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCheckInRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckIn"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_connections: {
         parameters: {
             query?: never;
@@ -1550,6 +1826,128 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_insights: {
+        parameters: {
+            query?: {
+                /**
+                 * @description `home` (the default), or a transaction ID (`txn_…`) for the insights
+                 *     about one transaction.
+                 */
+                transaction_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightList"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_mutes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MuteList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unmute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The rule ID. */
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    send_feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The insight ID (`ins_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackResult"];
+                };
             };
             "4XX": {
                 headers: {
@@ -1789,6 +2187,36 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_reflection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Any date in the week, `YYYY-MM-DD`. */
+                week: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reflection"];
+                };
+            };
+            "4XX": {
                 headers: {
                     [name: string]: unknown;
                 };

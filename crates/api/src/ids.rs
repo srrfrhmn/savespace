@@ -30,6 +30,10 @@ pub const SPLIT: &str = "spl";
 pub const RULE: &str = "rule";
 /// Recurring series.
 pub const RECURRING: &str = "rec";
+/// Insight.
+pub const INSIGHT: &str = "ins";
+/// Check-in.
+pub const CHECK_IN: &str = "chk";
 
 /// Formats an ID with its prefix.
 pub fn encode(prefix: &str, id: Uuid) -> String {

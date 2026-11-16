@@ -394,3 +394,77 @@ fieldset.confirm legend {
 .budget-panel {
   padding: 0 0 0.75rem;
 }
+
+.insight-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.insight-card {
+  background: var(--surface);
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.insight-concern {
+  border-left: 4px solid var(--text);
+}
+
+.insight-text {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.insight-actions {
+  margin-top: 0.75rem;
+}
+
+.facts-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.75rem 0 0;
+}
+
+.facts-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.facts-list dt {
+  color: var(--muted);
+}
+
+.facts-list dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+fieldset.reasons,
+fieldset.scale {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+fieldset.reasons legend,
+fieldset.scale legend {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.reflection {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.reflection .card p {
+  margin: 0;
+  font-size: 1.125rem;
+}

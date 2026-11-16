@@ -27,7 +27,12 @@ async fn main() -> anyhow::Result<()> {
     } else {
         tracing::warn!("PLAID_CLIENT_ID or PLAID_SECRET not set; bank connections off");
     }
-    let state = state.with_worker(api::worker_kick::WorkerKick::from_env());
+    let mut state = state.with_worker(api::worker_kick::WorkerKick::from_env());
+    if let Ok(kek) = platform_crypto::Kek::from_env() {
+        state = state.with_keyring(platform_crypto::Keyring::new(kek));
+    } else {
+        tracing::warn!("SAVESPACE_TOKEN_KEK not set; check-in notes off");
+    }
     let router = api::build_router(state, config.web_dir.as_deref());
 
     let listener = tokio::net::TcpListener::bind(config.addr)

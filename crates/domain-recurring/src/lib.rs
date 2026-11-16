@@ -18,6 +18,10 @@ use uuid::Uuid;
 /// The job kind that finds one household's series.
 pub const DETECT_JOB: &str = "recurring.household";
 
+/// The outbox topic after a household's series were found again. It starts
+/// the insight pipeline.
+pub const RECURRING_UPDATED: &str = "recurring.updated";
+
 /// How far back detection looks.
 const LOOKBACK_DAYS: i32 = 400;
 
@@ -201,6 +205,12 @@ impl RecurringService {
         .bind(Value::from(links))
         .execute(&mut *tx)
         .await?;
+        sqlx::query("INSERT INTO app.outbox (topic, household_id, payload) VALUES ($1, $2, $3)")
+            .bind(RECURRING_UPDATED)
+            .bind(household_id)
+            .bind(json!({ "series": ids.len() }))
+            .execute(&mut *tx)
+            .await?;
         tx.commit().await?;
         Ok(ids.len())
     }

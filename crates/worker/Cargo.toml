@@ -12,6 +12,7 @@ aggregator-plaid.workspace = true
 anyhow.workspace = true
 domain-categorize.workspace = true
 domain-identity.workspace = true
+domain-insights.workspace = true
 domain-ledger.workspace = true
 domain-recurring.workspace = true
 domain-sync.workspace = true

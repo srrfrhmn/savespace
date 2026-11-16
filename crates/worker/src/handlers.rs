@@ -11,10 +11,13 @@ use std::time::Duration;
 
 use anyhow::Context;
 use domain_categorize::CategorizeService;
+use domain_insights::InsightService;
+use domain_insights::facts::MonthInput;
+use domain_ledger::LedgerService;
 use domain_recurring::RecurringService;
 use domain_sync::{SyncError, SyncJob, SyncService};
 use platform_db::PgPool;
-use platform_db::jobs::Job;
+use platform_db::jobs::{self, Job, NewJob};
 use uuid::Uuid;
 
 /// What handlers need.
@@ -24,6 +27,8 @@ pub(crate) struct Ctx {
     pub(crate) sync: Option<SyncService>,
     pub(crate) categorize: CategorizeService,
     pub(crate) recurring: RecurringService,
+    pub(crate) ledger: LedgerService,
+    pub(crate) insights: InsightService,
 }
 
 type HandlerFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
@@ -59,6 +64,12 @@ impl Registry {
         });
         handlers.insert(domain_recurring::DETECT_JOB, |ctx, job| {
             Box::pin(detect_recurring(ctx, job))
+        });
+        handlers.insert(domain_insights::GENERATE_JOB, |ctx, job| {
+            Box::pin(generate_insights(ctx, job))
+        });
+        handlers.insert(domain_insights::DAILY_JOB, |ctx, _| {
+            Box::pin(daily_insights(ctx))
         });
         Self {
             ctx: Arc::new(ctx),
@@ -177,6 +188,55 @@ async fn detect_recurring(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
     let household_id = household_of(&job)?;
     let series = ctx.recurring.detect_household(household_id).await?;
     tracing::info!(series, "recurring series found");
+    Ok(())
+}
+
+/// `insights.household`: runs the insight pipeline (design doc §7.2). The
+/// flexible plan numbers come from the budget, so insights match the Budget
+/// page.
+async fn generate_insights(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
+    let household_id = household_of(&job)?;
+    let month = ctx.insights.local_month(household_id).await?;
+    let budget = ctx.ledger.budget_month(household_id, month).await?;
+    let planned: Vec<_> = budget
+        .categories
+        .iter()
+        .filter(|c| c.kind == "flex" && c.plan.is_some())
+        .collect();
+    let input = MonthInput {
+        plan: planned
+            .iter()
+            .map(|c| c.plan.unwrap_or(0) + c.carried)
+            .sum(),
+        left: budget.flex.left,
+    };
+    let outcome = ctx
+        .insights
+        .generate(household_id, (!planned.is_empty()).then_some(input))
+        .await?;
+    tracing::info!(
+        created = outcome.created,
+        refreshed = outcome.refreshed,
+        expired = outcome.expired,
+        "insights generated"
+    );
+    Ok(())
+}
+
+/// `insights.daily`: queues the 06:00 local run for each household that is
+/// due (design doc §7.2 triggers).
+async fn daily_insights(ctx: Arc<Ctx>) -> anyhow::Result<()> {
+    let due = ctx.insights.due_for_daily_run().await?;
+    for household_id in &due {
+        let key = household_id.to_string();
+        let mut job = NewJob::new(
+            domain_insights::GENERATE_JOB,
+            serde_json::json!({ "household_id": household_id }),
+        );
+        job.dedupe_key = Some(&key);
+        jobs::enqueue(&ctx.pool, &job).await?;
+    }
+    tracing::info!(queued = due.len(), "daily insight runs queued");
     Ok(())
 }
 

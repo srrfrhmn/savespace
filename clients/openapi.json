@@ -424,6 +424,81 @@
         }
       }
     },
+    "/check_ins": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Lists the person's latest check-ins.",
+        "operationId": "list_check_ins",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Saves a check-in.",
+        "operationId": "create_check_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckIn"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/connections": {
       "get": {
         "tags": [
@@ -551,6 +626,157 @@
         ],
         "responses": {
           "202": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/insights": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Lists the current insights for a view.",
+        "operationId": "list_insights",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "query",
+            "description": "`home` (the default), or a transaction ID (`txn_…`) for the insights\nabout one transaction.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightList"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/insights/mutes": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Lists the rules the person muted.",
+        "operationId": "list_mutes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MuteList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/insights/mutes/{rule_id}": {
+      "delete": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Unmutes a rule.",
+        "operationId": "unmute",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "description": "The rule ID.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/insights/{id}/feedback": {
+      "post": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Sends feedback. The insight is hidden at once.",
+        "operationId": "send_feedback",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The insight ID (`ins_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResult"
+                }
+              }
+            }
+          },
           "4XX": {
             "content": {
               "application/json": {
@@ -824,6 +1050,46 @@
             }
           },
           "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reflections/{week}": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Gets the weekly reflection for the week that contains a date.",
+        "operationId": "get_reflection",
+        "parameters": [
+          {
+            "name": "week",
+            "in": "path",
+            "description": "Any date in the week, `YYYY-MM-DD`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reflection"
+                }
+              }
+            }
+          },
+          "4XX": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1592,6 +1858,60 @@
           }
         }
       },
+      "CheckIn": {
+        "type": "object",
+        "description": "A check-in.",
+        "required": [
+          "id",
+          "score",
+          "date",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was saved (RFC 3339)."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "The day (`YYYY-MM-DD`) in the person's time zone."
+          },
+          "id": {
+            "type": "string",
+            "description": "The check-in ID (`chk_…`)."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The note."
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 5."
+          }
+        }
+      },
+      "CheckInList": {
+        "type": "object",
+        "description": "Check-ins, newest first.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckIn"
+            },
+            "description": "The latest 30."
+          }
+        }
+      },
       "Connection": {
         "type": "object",
         "description": "A bank connection.",
@@ -1653,6 +1973,28 @@
             "description": "The connections, oldest first."
           }
         }
+      },
+      "CreateCheckInRequest": {
+        "type": "object",
+        "description": "\"How do you feel about money today?\"",
+        "required": [
+          "score"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An optional note, up to 500 characters. Stored encrypted."
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 5."
+          }
+        },
+        "additionalProperties": false
       },
       "CreateConnectionRequest": {
         "type": "object",
@@ -1721,6 +2063,128 @@
           "rate_limit_error",
           "api_error"
         ]
+      },
+      "FeedbackRequest": {
+        "type": "object",
+        "description": "\"This is wrong\" or \"Not helpful\".",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`wrong` or `not_helpful`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `wrong`: `amount`, `merchant`, `category`, `date`, or `other`."
+          }
+        },
+        "additionalProperties": false
+      },
+      "FeedbackResult": {
+        "type": "object",
+        "description": "The result of feedback.",
+        "required": [
+          "muted"
+        ],
+        "properties": {
+          "muted": {
+            "type": "boolean",
+            "description": "True if this rule is now muted (3 \"Not helpful\" in 30 days)."
+          }
+        }
+      },
+      "Insight": {
+        "type": "object",
+        "description": "An insight.",
+        "required": [
+          "id",
+          "rule_id",
+          "kind",
+          "text",
+          "facts",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was made (RFC 3339)."
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightFact"
+            },
+            "description": "The facts the text uses (\"Why am I seeing this?\")."
+          },
+          "id": {
+            "type": "string",
+            "description": "The insight ID (`ins_…`)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`reassurance`, `awareness`, `anticipation`, `suggestion`, or `concern`."
+          },
+          "rule_id": {
+            "type": "string",
+            "description": "The rule, for example `spend.week_below_usual`."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text."
+          },
+          "transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The transaction (`txn_…`), for insights about one transaction."
+          }
+        }
+      },
+      "InsightFact": {
+        "type": "object",
+        "description": "One fact behind an insight.",
+        "required": [
+          "key",
+          "label",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "A stable key, for example `wtd_spend_minor`."
+          },
+          "label": {
+            "type": "string",
+            "description": "A label for the person."
+          },
+          "value": {
+            "type": "string",
+            "description": "The value as the text shows it."
+          }
+        }
+      },
+      "InsightList": {
+        "type": "object",
+        "description": "Insights for a view.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Insight"
+            },
+            "description": "At most 3, besides extra concerns (§7.1). Concerns first."
+          }
+        }
       },
       "Institution": {
         "type": "object",
@@ -1887,6 +2351,22 @@
             "type": "integer",
             "format": "int64",
             "description": "Spent this month without a category."
+          }
+        }
+      },
+      "MuteList": {
+        "type": "object",
+        "description": "Muted rules.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rule IDs."
           }
         }
       },
@@ -2068,6 +2548,51 @@
             "type": "integer",
             "format": "int64",
             "description": "How far amounts usually are from the typical amount."
+          }
+        }
+      },
+      "Reflection": {
+        "type": "object",
+        "description": "The weekly reflection.",
+        "required": [
+          "week_start",
+          "partial",
+          "cards"
+        ],
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReflectionCard"
+            },
+            "description": "At most 5 cards. The last one is a positive or neutral fact."
+          },
+          "partial": {
+            "type": "boolean",
+            "description": "True while the week is not over."
+          },
+          "week_start": {
+            "type": "string",
+            "format": "date",
+            "description": "The Monday of the week (`YYYY-MM-DD`)."
+          }
+        }
+      },
+      "ReflectionCard": {
+        "type": "object",
+        "description": "One reflection card.",
+        "required": [
+          "tone",
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text."
+          },
+          "tone": {
+            "type": "string",
+            "description": "`positive`, `neutral`, or `higher`. The last card is never `higher`."
           }
         }
       },
@@ -2493,6 +3018,10 @@
     {
       "name": "budget",
       "description": "The flex budget, the calm state, and recurring series."
+    },
+    {
+      "name": "insights",
+      "description": "Insights, feedback, the weekly reflection, and check-ins."
     },
     {
       "name": "webhooks",
