@@ -53,14 +53,17 @@ Status key: **Done** = built and tested. **Planned** = in a later milestone, wit
 | Elevation of privilege | Pre-sign-in lookups bypass RLS. | Only five narrow `SECURITY DEFINER` functions, with a fixed `search_path`, and `EXECUTE` granted to the runtime role only. | Done |
 | Tampering | The app changes the schema. | The runtime role has DML only. Migrations run as the owner role in a separate job. | Done |
 | Information disclosure | Backups leak. | `pg_dump` encrypted with `age` before upload. The backup service account can create objects only. | Done |
-| Information disclosure | Plaid tokens leak from the database. | Envelope encryption: AES-256-GCM with a household data key, wrapped by `token-kek`. Deleting the household key makes the tokens unreadable. | Planned (M2) |
+| Information disclosure | Plaid tokens leak from the database. | Envelope encryption (`platform-crypto`): AES-256-GCM with a household data key, wrapped by `token-kek`. The associated data binds each ciphertext to its purpose and household. Decrypted keys stay in memory for 5 minutes at most. Deleting the household key makes the tokens unreadable. | Done |
+| Tampering | A duplicate or late sync overwrites newer data. | The sync compares the stored cursor before it writes. Raw provider data is append-only (the runtime role cannot delete it). | Done |
+| Denial of service | A webhook flood starts many worker runs. | Webhooks must be signed. Worker starts are at most one per 20 seconds. The worker job runs one task at a time, and Cloud Run caps cost. | Done |
 
 ## External inputs
 
 | STRIDE | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
-| Spoofing | Forged Plaid webhook. | Verify the ES256 JWT in `Plaid-Verification` and the body SHA-256. Reject old `iat`. Store the raw webhook and return 200 in under 500 ms. | Planned (M2) |
-| Tampering | Script injection in the web app. | CSP: `default-src 'self'`, no inline scripts or styles, `frame-ancestors 'none'`. React escapes output. Plaid Link origins will be the only additions. | Done (Plaid in M2) |
+| Spoofing | Forged Plaid webhook. | Verify the ES256 JWT in `Plaid-Verification` (key from `/webhook_verification_key/get`, cached, expired keys rejected) and the body SHA-256 (constant-time). Reject `iat` older than 5 minutes. Store the raw webhook and return 200. No session, no `Origin` check: the signature is the authentication. | Done |
+| Tampering | Script injection in the web app. | CSP: `default-src 'self'`, no inline scripts or styles, `frame-ancestors 'none'`. React escapes output. The only additions are Plaid Link's script URL, its frame origin, and the Plaid API origin for the current environment. Plaid's script also adds an inline style whose content changes on each load. The CSP blocks it, and Link works without it. | Done |
+| Spoofing | A stolen session connects an attacker's bank or removes a connection. | Link tokens and connection removal need step-up (a passkey check in the last 5 minutes). | Done |
 | Information disclosure | Host-name confusion between the two `run.app` URLs. | The API redirects every host name except the public origin. Passkeys work only on the public origin. | Done |
 
 ## Supply chain and deployment

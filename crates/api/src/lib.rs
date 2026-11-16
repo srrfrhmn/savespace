@@ -81,6 +81,9 @@ const READY_TIMEOUT: Duration = Duration::from_secs(5);
 /// allow JavaScript `eval`. Plaid Link needs its script, its frame, and the
 /// Plaid API origin of the current environment (Plaid's documented CSP).
 fn csp(plaid: Option<PlaidEnv>) -> String {
+    // link-initialize.js also adds an inline <style> whose content changes on
+    // each load, so no hash can allow it. The CSP blocks it ('unsafe-inline'
+    // stays off) and Link works without it (checked in the M2 end-to-end run).
     let (script, frame, connect) = match plaid {
         Some(env) => (
             " https://cdn.plaid.com/link/v2/stable/link-initialize.js",

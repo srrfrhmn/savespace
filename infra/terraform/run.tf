@@ -23,6 +23,8 @@ locals {
   # Only the api reads these.
   api_plain_env = {
     SAVESPACE_PUBLIC_ORIGIN = local.public_origin
+    # The api starts this job right away for urgent work (design doc D15).
+    SAVESPACE_WORKER_JOB = "projects/${var.project_id}/locations/${var.region}/jobs/savespace-worker"
   }
   api_secret_env = {
     SAVESPACE_OWNER_SETUP_CODE = "owner-setup-code"
@@ -244,6 +246,16 @@ resource "google_cloud_run_v2_job" "migrate" {
 
 # ---------------------------------------------------------------------------
 # Scheduler: run the worker drain job on a schedule. Free tier: 3 jobs.
+
+# The api runs the worker job after a new connection or a webhook (D15).
+# Only this one job, not the migration job.
+resource "google_cloud_run_v2_job_iam_member" "api_runs_worker" {
+  count    = local.deploy ? 1 : 0
+  name     = google_cloud_run_v2_job.worker[0].name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.api.email}"
+}
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_worker" {
   count    = local.deploy ? 1 : 0
