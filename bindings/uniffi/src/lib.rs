@@ -16,6 +16,18 @@ pub enum CoreError {
         /// The code that failed to parse.
         code: String,
     },
+    /// The text is not an amount in this currency.
+    #[error("not a valid amount: {reason}")]
+    InvalidAmount {
+        /// Why it failed.
+        reason: String,
+    },
+}
+
+fn currency(code: &str) -> Result<Currency, CoreError> {
+    code.parse().map_err(|_| CoreError::UnsupportedCurrency {
+        code: code.to_owned(),
+    })
 }
 
 /// Formats an amount in minor units for display (en-US).
@@ -25,15 +37,26 @@ pub enum CoreError {
 /// Returns [`CoreError::UnsupportedCurrency`] for an unknown currency code.
 #[uniffi::export]
 pub fn format_money(minor: i64, currency: &str) -> Result<String, CoreError> {
-    let currency: Currency = currency
-        .parse()
-        .map_err(|_| CoreError::UnsupportedCurrency {
-            code: currency.to_owned(),
-        })?;
+    let currency = self::currency(currency)?;
     Ok(savespace_core::format_money(
         Money::from_minor(minor, currency),
         Locale::EnUs,
     ))
+}
+
+/// Parses an amount a person typed (en-US) into minor units.
+///
+/// # Errors
+///
+/// [`CoreError::UnsupportedCurrency`] or [`CoreError::InvalidAmount`].
+#[uniffi::export]
+pub fn parse_money(text: &str, currency: &str) -> Result<i64, CoreError> {
+    let currency = self::currency(currency)?;
+    savespace_core::parse_money_input(text, currency, Locale::EnUs)
+        .map(Money::minor)
+        .map_err(|e| CoreError::InvalidAmount {
+            reason: e.to_string(),
+        })
 }
 
 /// The version of `savespace-core` in this build.
@@ -52,6 +75,11 @@ mod tests {
         assert!(matches!(
             format_money(1, "XYZ"),
             Err(CoreError::UnsupportedCurrency { .. })
+        ));
+        assert_eq!(parse_money("$12.50", "USD").unwrap(), 1250);
+        assert!(matches!(
+            parse_money("1.005", "USD"),
+            Err(CoreError::InvalidAmount { .. })
         ));
     }
 }

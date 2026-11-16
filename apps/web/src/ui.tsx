@@ -92,6 +92,24 @@ export function describeError(error: unknown): string {
         return "The bank connection service did not answer. Try again in a few minutes.";
       case "aggregator_error":
         return "The bank connection service returned an error. Try again later.";
+      case "splits_total":
+        return "The parts must add up to the transaction amount.";
+      case "splits_count":
+        return "Use 2 to 10 parts.";
+      case "split_amount_invalid":
+        return "Each part must be more than zero.";
+      case "transaction_pending":
+        return "Split this transaction after it posts.";
+      case "category_invalid":
+        return "That category does not exist. Reload the page and try again.";
+      case "note_invalid":
+        return "Use up to 500 characters for the note.";
+      case "merchant_name_invalid":
+        return "Use up to 100 characters for the merchant name.";
+      case "too_many_rules":
+        return "You have the most rules SaveSpace allows. Delete one first.";
+      case "rule_target_invalid":
+        return "That merchant or category does not exist. Reload the page and try again.";
       default:
         return `Something went wrong. Try again. (Reference: ${error.requestId ?? error.code})`;
     }

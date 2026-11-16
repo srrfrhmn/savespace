@@ -20,6 +20,14 @@ pub const CONNECTION: &str = "conn";
 pub const ACCOUNT: &str = "acct";
 /// Transaction.
 pub const TRANSACTION: &str = "txn";
+/// Category.
+pub const CATEGORY: &str = "cat";
+/// Merchant.
+pub const MERCHANT: &str = "mer";
+/// Split part.
+pub const SPLIT: &str = "spl";
+/// Categorization rule.
+pub const RULE: &str = "rule";
 
 /// Formats an ID with its prefix.
 pub fn encode(prefix: &str, id: Uuid) -> String {

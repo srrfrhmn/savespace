@@ -22,6 +22,18 @@ pub fn format_money(minor: i64, currency: &str) -> Result<String, JsError> {
     ))
 }
 
+/// Parses an amount a person typed (en-US) into minor units, as a `BigInt`.
+///
+/// # Errors
+///
+/// Returns an error for an unsupported currency, bad syntax, more decimal
+/// places than the currency has, or overflow.
+#[wasm_bindgen(js_name = parseMoney)]
+pub fn parse_money(text: &str, currency: &str) -> Result<i64, JsError> {
+    let currency: Currency = currency.parse()?;
+    Ok(savespace_core::parse_money_input(text, currency, Locale::EnUs)?.minor())
+}
+
 /// The version of `savespace-core` in this build.
 #[wasm_bindgen(js_name = coreVersion)]
 pub fn core_version() -> String {

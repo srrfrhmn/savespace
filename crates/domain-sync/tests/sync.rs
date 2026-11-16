@@ -190,6 +190,14 @@ async fn count(admin: &PgPool, sql: &'static str) -> i64 {
     sqlx::query_scalar(sql).fetch_one(admin).await.unwrap()
 }
 
+/// The current transactions as (name, amount).
+async fn current(admin: &PgPool) -> Vec<(String, i64)> {
+    sqlx::query_as("SELECT name, amount_minor FROM app.transactions ORDER BY name")
+        .fetch_all(admin)
+        .await
+        .unwrap()
+}
+
 #[sqlx::test(migrator = "platform_db::MIGRATOR")]
 #[ignore = "needs DATABASE_URL"]
 async fn connect_then_sync_pages_and_changes(admin: PgPool) {
@@ -241,7 +249,7 @@ async fn connect_then_sync_pages_and_changes(admin: PgPool) {
         (3, 0, 0)
     );
 
-    let listed = svc.list_transactions(household, 10, None).await.unwrap();
+    let listed = current(&admin).await;
     assert_eq!(listed.len(), 3);
     let accounts = svc.list_accounts(household).await.unwrap();
     assert_eq!(accounts.len(), 1);
@@ -249,6 +257,20 @@ async fn connect_then_sync_pages_and_changes(admin: PgPool) {
     let connections = svc.list_connections(household).await.unwrap();
     assert_eq!(connections[0].status, "ok");
     assert!(connections[0].last_synced_at.is_some());
+
+    // The person edits the pending t2. Enrichment has run on t1.
+    sqlx::query(
+        "INSERT INTO app.user_overrides (transaction_id, household_id, note) \
+         SELECT id, household_id, 'lunch' FROM app.transactions \
+         WHERE provider_transaction_id = 't2'",
+    )
+    .execute(&admin)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE app.transactions SET enriched_version = raw_version")
+        .execute(&admin)
+        .await
+        .unwrap();
 
     // Second sync: t1 changes, the pending t2 posts as t4, t3 is removed.
     let mut t1 = txn("t1", -1300, false);
@@ -265,12 +287,7 @@ async fn connect_then_sync_pages_and_changes(admin: PgPool) {
         (1, 1, 2)
     );
 
-    let listed = svc.list_transactions(household, 10, None).await.unwrap();
-    let mut ids: Vec<(String, i64)> = listed
-        .iter()
-        .map(|t| (t.name.clone(), t.amount_minor))
-        .collect();
-    ids.sort();
+    let ids = current(&admin).await;
     assert_eq!(
         ids,
         [
@@ -286,6 +303,23 @@ async fn connect_then_sync_pages_and_changes(admin: PgPool) {
     .await
     .unwrap();
     assert_eq!(pending_link.as_deref(), Some("t2"));
+    // The edit moved to the posted transaction. Changed rows enrich again.
+    let moved: Option<String> = sqlx::query_scalar(
+        "SELECT t.provider_transaction_id FROM app.user_overrides o \
+         JOIN app.transactions t ON t.id = o.transaction_id WHERE o.note = 'lunch'",
+    )
+    .fetch_optional(&admin)
+    .await
+    .unwrap();
+    assert_eq!(moved.as_deref(), Some("t4"));
+    let unenriched: Vec<String> = sqlx::query_scalar(
+        "SELECT provider_transaction_id FROM app.transactions \
+         WHERE enriched_version IS NULL ORDER BY 1",
+    )
+    .fetch_all(&admin)
+    .await
+    .unwrap();
+    assert_eq!(unenriched, ["t1", "t4"]);
 
     // Raw data is append-only: t1 has two versions; removed rows are marked.
     assert_eq!(
@@ -327,15 +361,6 @@ async fn connect_then_sync_pages_and_changes(admin: PgPool) {
         .await
         .unwrap();
     assert_eq!(cursor, "c3");
-
-    // Pagination: the second page starts after the first page's last ID.
-    let first = svc.list_transactions(household, 1, None).await.unwrap();
-    let second = svc
-        .list_transactions(household, 1, Some(first[0].id))
-        .await
-        .unwrap();
-    assert_eq!(second.len(), 1);
-    assert_ne!(first[0].id, second[0].id);
 
     // Delete: removed at the provider, then all rows are gone.
     svc.delete_connection(household, user, conn.id, None)
@@ -531,7 +556,6 @@ async fn households_cannot_see_each_others_connections(admin: PgPool) {
 
     assert!(svc.list_connections(b).await.unwrap().is_empty());
     assert!(svc.list_accounts(b).await.unwrap().is_empty());
-    assert!(svc.list_transactions(b, 10, None).await.unwrap().is_empty());
     assert!(matches!(
         svc.sync_connection(b, conn.id).await,
         Err(SyncError::NotFound)

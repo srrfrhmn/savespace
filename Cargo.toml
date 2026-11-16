@@ -18,6 +18,8 @@ platform-observability = { path = "crates/platform-observability" }
 platform-crypto = { path = "crates/platform-crypto" }
 domain-identity = { path = "crates/domain-identity" }
 domain-sync = { path = "crates/domain-sync" }
+domain-categorize = { path = "crates/domain-categorize" }
+domain-ledger = { path = "crates/domain-ledger" }
 aggregator-plaid = { path = "crates/aggregator-plaid" }
 
 # Third-party crates. Pin versions here only.

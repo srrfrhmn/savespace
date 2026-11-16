@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
+use domain_categorize::CategorizeService;
 use domain_sync::{SyncError, SyncJob, SyncService};
 use platform_db::PgPool;
 use platform_db::jobs::Job;
@@ -20,6 +21,7 @@ pub(crate) struct Ctx {
     pub(crate) pool: PgPool,
     /// `None` if Plaid is not configured. Sync jobs then fail and retry.
     pub(crate) sync: Option<SyncService>,
+    pub(crate) categorize: CategorizeService,
 }
 
 type HandlerFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
@@ -50,6 +52,9 @@ impl Registry {
             Box::pin(webhook(ctx, job))
         });
         handlers.insert(domain_sync::POLL_JOB, |ctx, _| Box::pin(poll(ctx)));
+        handlers.insert(domain_categorize::ENRICH_JOB, |ctx, job| {
+            Box::pin(enrich(ctx, job))
+        });
         Self {
             ctx: Arc::new(ctx),
             handlers,
@@ -139,6 +144,26 @@ async fn poll(ctx: Arc<Ctx>) -> anyhow::Result<()> {
     };
     let queued = service.enqueue_due_polls(POLL_MAX_AGE).await?;
     tracing::info!(queued, "fallback polls queued");
+    Ok(())
+}
+
+/// The household of an outbox subscriber job.
+fn household_of(job: &Job) -> anyhow::Result<Uuid> {
+    serde_json::from_value(
+        job.payload
+            .get("household_id")
+            .cloned()
+            .context("payload has no household_id")?,
+    )
+    .context("household_id")
+}
+
+/// `categorize.household`: sets merchants and categories after a sync
+/// (the `transactions.changed` event).
+async fn enrich(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
+    let household_id = household_of(&job)?;
+    let updated = ctx.categorize.enrich_household(household_id).await?;
+    tracing::info!(updated, "transactions enriched");
     Ok(())
 }
 

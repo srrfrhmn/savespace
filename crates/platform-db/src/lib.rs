@@ -1,9 +1,11 @@
 //! `platform-db`: the PostgreSQL pool, migrations, and the job queue.
 //!
-//! Design doc §8.6 and §9. Phase 1 adds RLS session setup and the outbox relay.
+//! Design doc §8.6 and §9: RLS session setup, the job queue, the outbox
+//! relay, and the idempotency store.
 
 pub mod idempotency;
 pub mod jobs;
+pub mod outbox;
 
 use std::time::Duration;
 

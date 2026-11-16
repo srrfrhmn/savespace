@@ -1,10 +1,10 @@
-//! Bank connections, accounts, and transactions (design doc §10.1, §11.6).
+//! Bank connections and accounts (design doc §10.1, §11.6).
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use domain_sync::{SyncError, SyncService};
 use serde::{Deserialize, Serialize};
-use utoipa::{IntoParams, ToSchema};
+use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
@@ -20,7 +20,6 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(delete_connection))
         .routes(routes!(sync_connection))
         .routes(routes!(list_accounts))
-        .routes(routes!(list_transactions))
 }
 
 /// The sync service, or 503 if Plaid is not configured on this server.
@@ -174,49 +173,6 @@ pub struct Account {
 pub struct AccountList {
     /// The accounts.
     pub data: Vec<Account>,
-}
-
-/// A transaction.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct Transaction {
-    /// The transaction ID (`txn_…`).
-    pub id: String,
-    /// The account ID (`acct_…`).
-    pub account_id: String,
-    /// The amount in minor units. Negative is money out.
-    pub amount_minor: i64,
-    /// ISO 4217 code.
-    pub currency: String,
-    /// The bank date (`YYYY-MM-DD`).
-    #[schema(value_type = String, format = Date)]
-    pub date: jiff::civil::Date,
-    /// The description.
-    pub name: String,
-    /// The merchant, if known.
-    pub merchant_name: Option<String>,
-    /// True while pending.
-    pub pending: bool,
-    /// The provider's broad category.
-    pub category_primary: Option<String>,
-}
-
-/// A page of transactions (§11.5).
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TransactionList {
-    /// Newest first.
-    pub data: Vec<Transaction>,
-    /// True if more transactions follow. Pass the last ID as `starting_after`.
-    pub has_more: bool,
-}
-
-/// Paging for the transaction list.
-#[derive(Debug, Deserialize, IntoParams)]
-#[into_params(parameter_in = Query)]
-pub struct TransactionQuery {
-    /// 1 to 100. The default is 50.
-    pub limit: Option<u16>,
-    /// The last transaction ID (`txn_…`) of the previous page.
-    pub starting_after: Option<String>,
 }
 
 fn connection_id(value: &str) -> Result<uuid::Uuid, ApiError> {
@@ -389,56 +345,4 @@ async fn list_accounts(
         })
         .collect();
     Ok(Json(AccountList { data }))
-}
-
-/// Lists transactions, newest first. M3 adds filters and search.
-#[utoipa::path(get, path = "/transactions", tag = "connections",
-    params(TransactionQuery),
-    responses((status = 200, body = TransactionList), (status = "4XX", body = ErrorBody)))]
-async fn list_transactions(
-    State(state): State<AppState>,
-    auth: Auth,
-    Query(query): Query<TransactionQuery>,
-) -> Result<Json<TransactionList>, ApiError> {
-    let limit = query.limit.unwrap_or(50);
-    if !(1..=100).contains(&limit) {
-        return Err(ApiError::invalid("limit_invalid", "limit must be 1 to 100.").param("limit"));
-    }
-    let Some(sync) = state.sync.as_ref() else {
-        return Ok(Json(TransactionList {
-            data: Vec::new(),
-            has_more: false,
-        }));
-    };
-    let starting_after = query
-        .starting_after
-        .as_deref()
-        .map(|s| {
-            ids::decode(ids::TRANSACTION, s).ok_or_else(|| {
-                ApiError::invalid("cursor_invalid", "starting_after is not a transaction ID.")
-                    .param("starting_after")
-            })
-        })
-        .transpose()?;
-    // Ask for one more to know whether more follow.
-    let mut rows = sync
-        .list_transactions(auth.session.household_id, limit + 1, starting_after)
-        .await?;
-    let has_more = rows.len() > usize::from(limit);
-    rows.truncate(usize::from(limit));
-    let data = rows
-        .into_iter()
-        .map(|t| Transaction {
-            id: ids::encode(ids::TRANSACTION, t.id),
-            account_id: ids::encode(ids::ACCOUNT, t.account_id),
-            amount_minor: t.amount_minor,
-            currency: t.currency,
-            date: t.date,
-            name: t.name,
-            merchant_name: t.merchant_name,
-            pending: t.pending,
-            category_primary: t.category_primary,
-        })
-        .collect();
-    Ok(Json(TransactionList { data, has_more }))
 }

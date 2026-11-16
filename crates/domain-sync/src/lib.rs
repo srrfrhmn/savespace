@@ -121,29 +121,6 @@ pub struct Account {
     pub balance_at: Option<jiff::Timestamp>,
 }
 
-/// A transaction in its current form.
-#[derive(Debug, Clone, Serialize)]
-pub struct Transaction {
-    /// The transaction ID.
-    pub id: Uuid,
-    /// The account ID.
-    pub account_id: Uuid,
-    /// The amount in minor units. Negative is money out.
-    pub amount_minor: i64,
-    /// The currency code.
-    pub currency: String,
-    /// The bank date.
-    pub date: jiff::civil::Date,
-    /// The description.
-    pub name: String,
-    /// The merchant, if known.
-    pub merchant_name: Option<String>,
-    /// True while pending.
-    pub pending: bool,
-    /// The provider's broad category.
-    pub category_primary: Option<String>,
-}
-
 /// The counts from one sync.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct SyncOutcome {
@@ -196,18 +173,6 @@ type AccountRow = (
     Option<i64>,
     Option<i64>,
     Option<jiff_sqlx::Timestamp>,
-);
-
-type TransactionRow = (
-    Uuid,
-    Uuid,
-    i64,
-    String,
-    jiff_sqlx::Date,
-    String,
-    Option<String>,
-    bool,
-    Option<String>,
 );
 
 impl SyncService {
@@ -373,49 +338,6 @@ impl SyncService {
                 available_minor: r.9,
                 limit_minor: r.10,
                 balance_at: r.11.map(jiff_sqlx::Timestamp::to_jiff),
-            })
-            .collect())
-    }
-
-    /// Lists transactions, newest first. `starting_after` is the last ID of
-    /// the previous page (§11.5).
-    ///
-    /// # Errors
-    ///
-    /// A database error.
-    pub async fn list_transactions(
-        &self,
-        household_id: Uuid,
-        limit: u16,
-        starting_after: Option<Uuid>,
-    ) -> Result<Vec<Transaction>> {
-        let mut tx = platform_db::tenant_tx(&self.pool, household_id).await?;
-        let rows: Vec<TransactionRow> = sqlx::query_as(
-            "SELECT t.id, t.account_id, t.amount_minor, t.currency, t.date, t.name, \
-                    t.merchant_name, t.pending, t.provider_category_primary \
-             FROM app.transactions t \
-             WHERE $2::uuid IS NULL OR (t.date, t.id) < \
-                   (SELECT c.date, c.id FROM app.transactions c WHERE c.id = $2) \
-             ORDER BY t.date DESC, t.id DESC \
-             LIMIT $1",
-        )
-        .bind(i64::from(limit))
-        .bind(starting_after)
-        .fetch_all(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        Ok(rows
-            .into_iter()
-            .map(|r| Transaction {
-                id: r.0,
-                account_id: r.1,
-                amount_minor: r.2,
-                currency: r.3,
-                date: r.4.to_jiff(),
-                name: r.5,
-                merchant_name: r.6,
-                pending: r.7,
-                category_primary: r.8,
             })
             .collect())
     }
@@ -689,7 +611,7 @@ impl SyncService {
                    pending_provider_transaction_id = EXCLUDED.pending_provider_transaction_id, \
                    provider_category_primary = EXCLUDED.provider_category_primary, \
                    provider_category_detailed = EXCLUDED.provider_category_detailed, \
-                   updated_at = now()",
+                   enriched_version = NULL, updated_at = now()",
             )
             .bind(household_id)
             .bind(connection_id)
@@ -708,6 +630,23 @@ impl SyncService {
         }
 
         if !changes.removed.is_empty() {
+            // Pending to posted (§10.2): the person's edits move to the posted
+            // transaction before the pending one is deleted. Splits do not
+            // move: only posted transactions can have them.
+            sqlx::query(
+                "UPDATE app.user_overrides o SET transaction_id = posted.id, updated_at = now() \
+                 FROM app.transactions pend \
+                 JOIN app.transactions posted ON posted.connection_id = pend.connection_id \
+                   AND posted.pending_provider_transaction_id = pend.provider_transaction_id \
+                 WHERE o.transaction_id = pend.id AND pend.connection_id = $1 \
+                   AND pend.provider_transaction_id = ANY($2) \
+                   AND NOT EXISTS (SELECT 1 FROM app.user_overrides x \
+                                   WHERE x.transaction_id = posted.id)",
+            )
+            .bind(connection_id)
+            .bind(&changes.removed)
+            .execute(&mut *tx)
+            .await?;
             sqlx::query(
                 "UPDATE app.transactions_raw SET removed_at = now() \
                  WHERE connection_id = $1 AND provider_transaction_id = ANY($2) \

@@ -1,0 +1,20 @@
+{
+  "description": "Golden cases for parse_money_input (en-US). Every platform MUST give the same minor units, or an error (expected null). Design doc §8.4.",
+  "cases": [
+    { "text": "12.5", "currency": "USD", "expected": "1250" },
+    { "text": " $1,234.56 ", "currency": "USD", "expected": "123456" },
+    { "text": "-$3", "currency": "USD", "expected": "-300" },
+    { "text": "−3.20", "currency": "USD", "expected": "-320" },
+    { "text": "$ 7", "currency": "USD", "expected": "700" },
+    { "text": ".5", "currency": "USD", "expected": "50" },
+    { "text": "0", "currency": "USD", "expected": "0" },
+    { "text": "¥1,800", "currency": "JPY", "expected": "1800" },
+    { "text": "€999.50", "currency": "EUR", "expected": "99950" },
+    { "text": "", "currency": "USD", "expected": null },
+    { "text": "1e3", "currency": "USD", "expected": null },
+    { "text": "1,23", "currency": "USD", "expected": null },
+    { "text": "1.005", "currency": "USD", "expected": null },
+    { "text": "1.5", "currency": "JPY", "expected": null },
+    { "text": "abc", "currency": "USD", "expected": null }
+  ]
+}

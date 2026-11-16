@@ -120,7 +120,9 @@ dependencies = [
  "anyhow",
  "axum",
  "base64 0.23.1",
+ "domain-categorize",
  "domain-identity",
+ "domain-ledger",
  "domain-sync",
  "hex",
  "http-body-util",
@@ -977,6 +979,18 @@ dependencies = [
 [[package]]
 name = "domain-categorize"
 version = "0.1.0"
+dependencies = [
+ "jiff 1.0.0",
+ "jiff-sqlx",
+ "platform-db",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "domain-identity"
@@ -1007,6 +1021,17 @@ version = "0.1.0"
 [[package]]
 name = "domain-ledger"
 version = "0.1.0"
+dependencies = [
+ "jiff 1.0.0",
+ "jiff-sqlx",
+ "platform-db",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "domain-notify"
@@ -4633,6 +4658,7 @@ version = "0.1.0"
 dependencies = [
  "aggregator-plaid",
  "anyhow",
+ "domain-categorize",
  "domain-identity",
  "domain-sync",
  "platform-db",
