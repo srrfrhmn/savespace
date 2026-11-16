@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use platform_db::PgPool;
-use platform_db::jobs::{self, FailOutcome, Job};
+use platform_db::jobs::{self, FailOutcome, Job, NewJob};
 
 use crate::handlers::Registry;
 
@@ -24,6 +24,18 @@ const LEASE: Duration = Duration::from_mins(5);
 const DRAIN_LIMIT: Duration = Duration::from_mins(8);
 /// `run` waits this long when the queue is empty.
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
+/// `run` enqueues the periodic jobs this often. `drain` runs every hour and
+/// enqueues them on each start.
+const SCHEDULE_INTERVAL: Duration = Duration::from_hours(1);
+
+/// Enqueues the periodic jobs. The dedupe key keeps one live job per kind.
+async fn schedule(pool: &PgPool) {
+    let mut cleanup = NewJob::new(handlers::CLEANUP, serde_json::json!({}));
+    cleanup.dedupe_key = Some("periodic");
+    if let Err(e) = jobs::enqueue(pool, &cleanup).await {
+        tracing::warn!(error = %e, "cannot enqueue periodic jobs");
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Command {
@@ -77,6 +89,7 @@ fn worker_id() -> String {
 async fn drain(pool: &PgPool, registry: &Registry, worker_id: &str) -> anyhow::Result<()> {
     let started = Instant::now();
     let requeued = jobs::requeue_expired(pool).await.context("requeue")?;
+    schedule(pool).await;
     let mut ran = 0_u32;
     while started.elapsed() < DRAIN_LIMIT {
         if !run_one(pool, registry, worker_id).await? {
@@ -97,7 +110,12 @@ async fn run(pool: &PgPool, registry: &Registry, worker_id: &str) -> anyhow::Res
     tracing::info!(worker_id, kinds = ?registry.kinds(), "worker started");
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
+    let mut scheduled: Option<Instant> = None;
     loop {
+        if scheduled.is_none_or(|t| t.elapsed() >= SCHEDULE_INTERVAL) {
+            schedule(pool).await;
+            scheduled = Some(Instant::now());
+        }
         if let Err(e) = jobs::requeue_expired(pool).await {
             tracing::warn!(error = %e, "requeue failed");
         }

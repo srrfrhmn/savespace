@@ -40,10 +40,11 @@ Run `pnpm wasm` again after you change `crates/core` or `bindings/wasm`.
 | Licenses and advisories | `cargo deny check` |
 | Run the API | `cargo run -p api` (listens on `127.0.0.1:8080`, `GET /health`, `GET /ready`). Set `SAVESPACE_WEB_DIR=apps/web/dist` to serve the web app too. |
 | Run the worker | `cargo run -p worker` (`run`, `drain`, or `migrate`) |
-| Database tests | `cargo nextest run -p platform-db --run-ignored only` (needs `DATABASE_URL` and Docker Postgres) |
+| Database tests | `cargo nextest run --workspace --run-ignored only` (needs `DATABASE_URL` and Docker Postgres). They connect as `savespace_runtime`, so RLS applies. |
+| API types | `pnpm gen:api` after you change an API type or route. It writes `clients/openapi.json` and `clients/ts/schema.d.ts`. CI fails if they are out of date. |
 | Container image | `docker build -t savespace .` |
 | Terraform check | `terraform -chdir=infra/terraform fmt -check` and `validate` |
-| Web dev server | `pnpm --filter @savespace/web dev` |
+| Web dev server | `pnpm --filter @savespace/web dev`. It sends `/v1` to the API on port 8080. Run the API with `SAVESPACE_PUBLIC_ORIGIN=http://localhost:5173`, so passkeys and the origin check use the dev server URL. |
 | Web lint and format | `pnpm lint` / `pnpm format` |
 | Web typecheck, test, build | `pnpm typecheck` / `pnpm test` / `pnpm build` |
 | Rebuild diagrams | `pnpm diagrams` |

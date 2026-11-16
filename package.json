@@ -12,9 +12,12 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "diagrams": "pnpm --filter @savespace/diagrams diagrams"
+    "diagrams": "pnpm --filter @savespace/diagrams diagrams",
+    "gen:api": "cargo run -q -p api -- openapi clients/openapi.json && pnpm gen:client",
+    "gen:client": "openapi-typescript clients/openapi.json --empty-objects-unknown -o clients/ts/schema.d.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.7"
+    "@biomejs/biome": "^2.6.7",
+    "openapi-typescript": "^7.13.0"
   }
 }

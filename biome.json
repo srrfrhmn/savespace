@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/pkg", "!**/dist", "!docs/diagrams", "!target", "!**/*.md"]
+    "includes": ["**", "!**/pkg", "!**/dist", "!docs/diagrams", "!target", "!**/*.md", "!clients"]
   },
   "formatter": {
     "enabled": true,
@@ -22,6 +22,10 @@
   },
   "assist": {
     "enabled": true,
-    "actions": { "source": { "organizeImports": "on" } }
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
   }
 }

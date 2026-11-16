@@ -7,26 +7,36 @@
 //!
 //! - `GET /health`: liveness. Does not use the database.
 //! - `GET /ready`: readiness. Checks the database.
-//! - `/v1/...`: the JSON API (Phase 1).
+//! - `/v1/...`: the JSON API. `GET /v1/openapi.json` describes it.
 //! - Everything else: the web app (static files), if `SAVESPACE_WEB_DIR` is set.
 //!
 //! Do not use paths that end in `z` (for example `/healthz`). Cloud Run
 //! reserves some of them.
 
+pub mod error;
+pub mod guard;
+pub mod idempotency;
+pub mod ids;
+pub mod routes;
+pub mod session;
+
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
 use axum::extract::State;
 use axum::http::header::{
-    CACHE_CONTROL, CONTENT_SECURITY_POLICY, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY,
-    X_CONTENT_TYPE_OPTIONS,
+    CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE, REFERRER_POLICY,
+    STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS,
 };
 use axum::http::{HeaderName, HeaderValue, Request, StatusCode};
+use axum::middleware::{from_fn, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
+use domain_identity::{Identity, IdentityConfig};
 use platform_db::PgPool;
 use serde::Serialize;
 use tower_http::request_id::{
@@ -35,6 +45,12 @@ use tower_http::request_id::{
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
+use url::Url;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+
+use crate::error::{ApiError, ErrorType};
+use crate::guard::RateLimiter;
 
 /// The response header that carries the request ID (design doc §11.4).
 pub const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("request-id");
@@ -45,14 +61,19 @@ pub const ADDR_ENV: &str = "SAVESPACE_API_ADDR";
 /// The environment variable for the web app build directory.
 pub const WEB_DIR_ENV: &str = "SAVESPACE_WEB_DIR";
 
+/// The environment variable for the public origin of the app.
+pub const PUBLIC_ORIGIN_ENV: &str = "SAVESPACE_PUBLIC_ORIGIN";
+
+/// The environment variable for the one-time owner setup code (D12).
+pub const SETUP_CODE_ENV: &str = "SAVESPACE_OWNER_SETUP_CODE";
+
 /// The longest time `/ready` waits for the database.
 const READY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The Content Security Policy for the web app.
 ///
 /// `wasm-unsafe-eval` lets the page compile `savespace-core` WASM. It does not
-/// allow JavaScript `eval`. Plaid Link (Phase 1) adds its script and frame
-/// origins here.
+/// allow JavaScript `eval`. Plaid Link (M2) adds its script and frame origins.
 const CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; \
     style-src 'self'; img-src 'self' data:; connect-src 'self'; \
     frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
@@ -66,6 +87,10 @@ pub struct Config {
     pub database_url: String,
     /// The web app build directory. If `None`, the API serves no static files.
     pub web_dir: Option<PathBuf>,
+    /// The origin people use in the browser. Passkeys are bound to its host.
+    pub public_origin: Url,
+    /// The one-time owner setup code. `None` disables setup.
+    pub setup_code: Option<String>,
 }
 
 impl Config {
@@ -74,11 +99,15 @@ impl Config {
     /// - `SAVESPACE_API_ADDR`: listen address. The default is `127.0.0.1:8080`.
     /// - `DATABASE_URL`: required.
     /// - `SAVESPACE_WEB_DIR`: optional web app build directory.
+    /// - `SAVESPACE_PUBLIC_ORIGIN`: the URL people open, for example
+    ///   `https://savespace-api-….run.app`. The default is
+    ///   `http://localhost:8080`.
+    /// - `SAVESPACE_OWNER_SETUP_CODE`: optional one-time setup code.
     ///
     /// # Errors
     ///
-    /// Returns an error if `SAVESPACE_API_ADDR` is not a valid socket address
-    /// or `DATABASE_URL` is not set.
+    /// Returns an error if `SAVESPACE_API_ADDR` is not a valid socket address,
+    /// `DATABASE_URL` is not set, or `SAVESPACE_PUBLIC_ORIGIN` is not a URL.
     pub fn from_env() -> anyhow::Result<Self> {
         let raw = std::env::var(ADDR_ENV).unwrap_or_else(|_| "127.0.0.1:8080".to_owned());
         let addr = raw
@@ -87,10 +116,19 @@ impl Config {
         let database_url = std::env::var(platform_db::DATABASE_URL_ENV)
             .with_context(|| format!("{} is not set", platform_db::DATABASE_URL_ENV))?;
         let web_dir = std::env::var_os(WEB_DIR_ENV).map(PathBuf::from);
+        let origin =
+            std::env::var(PUBLIC_ORIGIN_ENV).unwrap_or_else(|_| "http://localhost:8080".into());
+        let public_origin = Url::parse(&origin)
+            .with_context(|| format!("{PUBLIC_ORIGIN_ENV}={origin:?} is not a URL"))?;
+        let setup_code = std::env::var(SETUP_CODE_ENV)
+            .ok()
+            .filter(|c| !c.trim().is_empty());
         Ok(Self {
             addr,
             database_url,
             web_dir,
+            public_origin,
+            setup_code,
         })
     }
 }
@@ -100,6 +138,37 @@ impl Config {
 pub struct AppState {
     /// The database pool (runtime role).
     pub db: PgPool,
+    /// Sign-in and sessions.
+    pub identity: Identity,
+    /// The origin people use in the browser.
+    pub public_origin: Arc<Url>,
+    /// The limiter for sign-in routes.
+    pub auth_limiter: RateLimiter,
+}
+
+impl AppState {
+    /// Creates the state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the origin is not valid for WebAuthn.
+    pub fn new(db: PgPool, public_origin: Url, setup_code: Option<String>) -> anyhow::Result<Self> {
+        let identity = Identity::new(
+            db.clone(),
+            &IdentityConfig {
+                origin: public_origin.clone(),
+                setup_code,
+            },
+        )
+        .context("identity configuration")?;
+        Ok(Self {
+            db,
+            identity,
+            public_origin: Arc::new(public_origin),
+            // 20 sign-in requests per minute per client, 100 in all.
+            auth_limiter: RateLimiter::new(20, 100, Duration::from_mins(1)),
+        })
+    }
 }
 
 /// Makes request IDs in the API ID style: `req_` plus a `UUIDv7`.
@@ -155,58 +224,114 @@ fn unavailable() -> Response {
         .into_response()
 }
 
-/// The error body from design doc §11.4.
-#[derive(Debug, Serialize)]
-struct ErrorBody {
-    error: ErrorDetail,
-}
-
-#[derive(Debug, Serialize)]
-struct ErrorDetail {
-    #[serde(rename = "type")]
-    kind: &'static str,
-    code: &'static str,
-    message: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    request_id: Option<String>,
-}
-
-async fn api_not_found(request_id: Option<Extension<RequestId>>) -> Response {
-    let request_id =
-        request_id.and_then(|Extension(id)| id.header_value().to_str().ok().map(str::to_owned));
-    (
+async fn api_not_found() -> ApiError {
+    ApiError::new(
         StatusCode::NOT_FOUND,
-        Json(ErrorBody {
-            error: ErrorDetail {
-                kind: "not_found_error",
-                code: "route_not_found",
-                message: "No API route matches this method and path.",
-                request_id,
-            },
-        }),
+        ErrorType::NotFoundError,
+        "route_not_found",
+        "No API route matches this method and path.",
     )
-        .into_response()
+}
+
+/// The `OpenAPI` document.
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "SaveSpace API",
+        description = "Design doc §11. Paths are relative to /v1."
+    ),
+    servers((url = "/v1")),
+    tags(
+        (name = "auth", description = "Owner setup, passkey sign-in, and step-up checks."),
+        (name = "me", description = "The signed-in person.")
+    )
+)]
+struct ApiDoc;
+
+/// The `/v1` route groups before middleware, and their `OpenAPI` document.
+struct V1 {
+    /// Sign-in routes that work without a session.
+    public_auth: Router<AppState>,
+    /// Sign-in routes that need a session (step-up checks).
+    session_auth: Router<AppState>,
+    /// Other routes that need a session.
+    signed_in: Router<AppState>,
+    doc: utoipa::openapi::OpenApi,
+}
+
+fn v1_parts() -> V1 {
+    let (public_auth, mut doc) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .merge(routes::auth::public_routes())
+        .split_for_parts();
+    let (session_auth, d) = routes::auth::session_routes().split_for_parts();
+    doc.merge(d);
+    let (signed_in, d) = routes::me::routes().split_for_parts();
+    doc.merge(d);
+    V1 {
+        public_auth,
+        session_auth,
+        signed_in,
+        doc,
+    }
+}
+
+/// The `/v1` routes with their middleware, and the `OpenAPI` document.
+fn v1(state: &AppState) -> (Router<AppState>, utoipa::openapi::OpenApi) {
+    let parts = v1_parts();
+    let rate_limit = from_fn_with_state(state.clone(), guard::auth_rate_limit);
+    // Layers run outside in: require_session, then idempotency.
+    let signed_in = parts
+        .session_auth
+        .layer(rate_limit.clone())
+        .merge(parts.signed_in)
+        .layer(from_fn_with_state(state.clone(), idempotency::idempotency))
+        .layer(from_fn_with_state(state.clone(), session::require_session));
+    let router = parts.public_auth.layer(rate_limit).merge(signed_in);
+    (router, parts.doc)
+}
+
+/// The `OpenAPI` document (design doc §11.1). A test checks that
+/// `clients/openapi.json` matches it.
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    v1_parts().doc
 }
 
 /// Builds the HTTP router with all routes and middleware.
 ///
 /// Tests call this function directly, without a network socket.
 pub fn build_router(state: AppState, web_dir: Option<&Path>) -> Router {
+    let (api, openapi) = v1(&state);
+    let spec: Arc<str> = Arc::from(openapi.to_json().unwrap_or_default());
+    let api = api
+        .route(
+            "/openapi.json",
+            get(move || {
+                let spec = Arc::clone(&spec);
+                async move { ([(CONTENT_TYPE, "application/json")], spec.to_string()) }
+            }),
+        )
+        .fallback(api_not_found)
+        .layer(from_fn_with_state(state.clone(), guard::same_origin));
+
     // JSON responses can hold financial data. Never cache them.
     let json = Router::new()
         .route("/health", get(health))
         .route("/ready", get(ready))
-        .nest("/v1", Router::new().fallback(api_not_found))
+        .nest("/v1", api)
         .layer(SetResponseHeaderLayer::if_not_present(
             CACHE_CONTROL,
             HeaderValue::from_static("no-store"),
         ))
-        .with_state(state);
+        .with_state(state.clone());
 
     let router = match web_dir {
         Some(dir) => json.merge(web_app(dir)),
         None => json,
     };
+
+    let router = router
+        .layer(from_fn(error::render_errors))
+        .layer(from_fn_with_state(state, guard::canonical_host));
 
     with_security_headers(router)
         .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER))

@@ -3,7 +3,7 @@
 #
 # Free tier: 6 active secret versions and 10,000 access operations per month.
 # Cloud Run reads each secret once when an instance starts. set-secret.sh
-# destroys old versions, so this setup uses 4 active versions.
+# destroys old versions, so this setup uses 5 active versions.
 
 locals {
   secrets = {
@@ -15,6 +15,9 @@ locals {
     # 32 random bytes, base64. Key-encryption key for Plaid access tokens
     # (design doc §12.3). Replaces Cloud KMS in the MVP.
     "token-kek" = [google_service_account.api, google_service_account.worker]
+    # One-time owner setup code (design doc D12). Useless once the owner
+    # exists: setup closes after the first passkey.
+    "owner-setup-code" = [google_service_account.api]
   }
 
   secret_access = merge([

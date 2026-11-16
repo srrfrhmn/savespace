@@ -122,12 +122,13 @@ jobs:
           url=$(gcloud run services describe savespace-api --region "$REGION" --format 'value(status.url)')
           echo "url=${url}" >> "$GITHUB_OUTPUT"
 
+      # --location follows the redirect to the public origin (the passkey host).
       - name: Smoke test
         env:
           URL: ${{ steps.api.outputs.url }}
         run: |
-          for path in /health /ready /; do
-            curl --fail --silent --show-error --output /dev/null \
+          for path in /health /ready / /v1/auth/setup; do
+            curl --fail --silent --show-error --location --output /dev/null \
               --retry 5 --retry-all-errors --retry-delay 3 "${URL}${path}"
             echo "ok ${path}"
           done

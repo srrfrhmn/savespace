@@ -15,6 +15,18 @@ locals {
     PLAID_SECRET        = "plaid-secret"
     SAVESPACE_TOKEN_KEK = "token-kek"
   }
+
+  # The deterministic Cloud Run URL. Passkeys are bound to this host name
+  # (WebAuthn relying party ID), and the api redirects other host names here.
+  public_origin = "https://savespace-api-${data.google_project.this.number}.${var.region}.run.app"
+
+  # Only the api reads these.
+  api_plain_env = {
+    SAVESPACE_PUBLIC_ORIGIN = local.public_origin
+  }
+  api_secret_env = {
+    SAVESPACE_OWNER_SETUP_CODE = "owner-setup-code"
+  }
 }
 
 resource "google_cloud_run_v2_service" "api" {
@@ -61,7 +73,15 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       dynamic "env" {
-        for_each = local.runtime_secret_env
+        for_each = local.api_plain_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = merge(local.runtime_secret_env, local.api_secret_env)
         content {
           name = env.key
           value_source {

@@ -53,6 +53,7 @@ Do these steps once, in order. Commands use Bash and run from the repository roo
    infra/scripts/neon-setup.sh
    printf '%s' "$PLAID_SECRET" | infra/scripts/set-secret.sh plaid-secret
    openssl rand -base64 32 | tr -d '\n' | infra/scripts/set-secret.sh token-kek
+   openssl rand -hex 16 | tr -d '\n' | infra/scripts/set-secret.sh owner-setup-code
    ```
 6. **First image.** Build and push from your machine:
    ```sh
@@ -63,8 +64,11 @@ Do these steps once, in order. Commands use Bash and run from the repository roo
 7. **Cloud Run.** Set `image` in `terraform.tfvars` to that image, then `terraform apply` again.
 8. **Migrate.** `gcloud run jobs execute savespace-migrate --region us-east1 --wait`
 9. **GitHub.** `infra/scripts/github-setup.sh` sets the repository variables and the `production` environment.
+10. **Owner account.** Open the app at `terraform output -raw api_url`. Select **Set up SaveSpace**. Enter the setup code from `gcloud secrets versions access latest --secret owner-setup-code`, then create your passkey. Save the 10 recovery codes in a password manager.
 
 After this, every push to `main` that passes CI deploys.
+
+The app URL is `https://savespace-api-<project number>.us-east1.run.app`. Passkeys work on this host name only. The other `run.app` URL redirects to it.
 
 ## Deploy
 
@@ -74,7 +78,7 @@ After this, every push to `main` that passes CI deploys.
 2. Run `savespace-migrate` and wait. A failed migration stops the deploy.
 3. Point `savespace-worker` at the new image.
 4. Deploy `savespace-api`. Cloud Run sends traffic only after the `/health` startup probe passes.
-5. Smoke test `/health`, `/ready`, and `/`.
+5. Smoke test `/health`, `/ready`, `/`, and `/v1/auth/setup`.
 
 Migrations run before the new code, so they must be backward compatible: expand and contract (design doc §9.3).
 
@@ -101,6 +105,12 @@ The next deploy sends traffic to the new revision again. Migrations do not roll 
 | Check the queue end to end | Insert `('system.ping', '{}')` into `app.jobs`, run the worker, check `status = 'succeeded'` |
 | Pause the worker | `gcloud scheduler jobs pause savespace-worker-drain --location us-east1` |
 | Database shell | `psql "$(gcloud secrets versions access latest --secret database-url-migrate)"` (needs local `psql`) |
+
+## Sign-in recovery
+
+- **Lost a device, have another passkey:** sign in with the other passkey. In **Security**, remove the lost passkey.
+- **No passkey, have a recovery code:** select **Use a recovery code** on the sign-in page. Then add a new passkey in **Security** and make new recovery codes.
+- **No passkey and no recovery code:** use the database shell (owner role). Delete the owner's rows from `app.passkeys` and `app.sessions`, then insert the SHA-256 hash of a new recovery code (12 Crockford base32 characters, no dashes) into `app.recovery_codes`. Write an `app.audit_log` row with `action = 'operator.recovery'`.
 
 ## Rotate a secret
 
