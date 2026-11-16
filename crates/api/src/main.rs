@@ -17,7 +17,17 @@ async fn main() -> anyhow::Result<()> {
     let config = api::Config::from_env()?;
     let db = platform_db::connect_lazy(&config.database_url, &platform_db::PoolConfig::new("api"))
         .context("parse DATABASE_URL")?;
-    let state = api::AppState::new(db.clone(), config.public_origin.clone(), config.setup_code)?;
+    let mut state =
+        api::AppState::new(db.clone(), config.public_origin.clone(), config.setup_code)?;
+    if let Some((sync, plaid)) =
+        aggregator_plaid::sync_service_from_env(db.clone()).map_err(anyhow::Error::msg)?
+    {
+        tracing::info!(env = ?plaid.env(), "bank connections on");
+        state = state.with_sync(sync, plaid);
+    } else {
+        tracing::warn!("PLAID_CLIENT_ID or PLAID_SECRET not set; bank connections off");
+    }
+    let state = state.with_worker(api::worker_kick::WorkerKick::from_env());
     let router = api::build_router(state, config.web_dir.as_deref());
 
     let listener = tokio::net::TcpListener::bind(config.addr)

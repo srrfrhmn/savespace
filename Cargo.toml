@@ -15,19 +15,29 @@ publish = false
 savespace-core = { path = "crates/core" }
 platform-db = { path = "crates/platform-db" }
 platform-observability = { path = "crates/platform-observability" }
+platform-crypto = { path = "crates/platform-crypto" }
 domain-identity = { path = "crates/domain-identity" }
+domain-sync = { path = "crates/domain-sync" }
+aggregator-plaid = { path = "crates/aggregator-plaid" }
 
 # Third-party crates. Pin versions here only.
+aes-gcm = "0.11.1"
 anyhow = "1.0.104"
+async-trait = "0.1.92"
 axum = { version = "0.8.9", features = ["macros"] }
 
 base64 = "0.23.1"
 cargo_metadata = "0.23.1"
+hex = "0.4.3"
 http-body-util = "0.1.5"
 jiff = { version = "1.0.0", features = ["serde"] }
 jiff-sqlx = { version = "1.0.0", features = ["postgres"] }
+p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "std"] }
 proptest = "1.12.0"
 rand = "0.10.4"
+# rustls with the ring provider (already used by sqlx). No aws-lc-rs C build.
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider", "http2", "charset"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"
@@ -44,9 +54,11 @@ uniffi = "0.32.2"
 url = "2.5.8"
 utoipa = { version = "6.0.0", features = ["uuid"] }
 utoipa-axum = "0.3.0"
-uuid = { version = "1.29.0", features = ["v7"] }
+uuid = { version = "1.29.0", features = ["v7", "serde"] }
 wasm-bindgen = "0.2.130"
+zeroize = "1.9.1"
 webauthn-rs = { version = "0.6.2", features = ["danger-allow-state-serialisation", "conditional-ui"] }
+wiremock = "0.6.5"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

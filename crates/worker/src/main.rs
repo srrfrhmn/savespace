@@ -28,13 +28,29 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// enqueues them on each start.
 const SCHEDULE_INTERVAL: Duration = Duration::from_hours(1);
 
-/// Enqueues the periodic jobs. The dedupe key keeps one live job per kind.
+/// Enqueues the periodic jobs. The dedupe key keeps one queued job per kind.
 async fn schedule(pool: &PgPool) {
-    let mut cleanup = NewJob::new(handlers::CLEANUP, serde_json::json!({}));
-    cleanup.dedupe_key = Some("periodic");
-    if let Err(e) = jobs::enqueue(pool, &cleanup).await {
-        tracing::warn!(error = %e, "cannot enqueue periodic jobs");
+    for kind in [handlers::CLEANUP, domain_sync::POLL_JOB] {
+        let mut job = NewJob::new(kind, serde_json::json!({}));
+        job.dedupe_key = Some("periodic");
+        if let Err(e) = jobs::enqueue(pool, &job).await {
+            tracing::warn!(error = %e, kind, "cannot enqueue a periodic job");
+        }
     }
+}
+
+/// The handlers, with bank sync if Plaid is configured.
+fn registry(pool: &PgPool) -> anyhow::Result<Registry> {
+    let sync = aggregator_plaid::sync_service_from_env(pool.clone())
+        .map_err(anyhow::Error::msg)?
+        .map(|(sync, _)| sync);
+    if sync.is_none() {
+        tracing::warn!("PLAID_CLIENT_ID or PLAID_SECRET not set; sync jobs will fail");
+    }
+    Ok(Registry::new(handlers::Ctx {
+        pool: pool.clone(),
+        sync,
+    }))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,8 +82,8 @@ async fn main() -> anyhow::Result<()> {
 
     let result = match command {
         Command::Migrate => migrate(&pool).await,
-        Command::Drain => drain(&pool, &Registry::new(), &worker_id()).await,
-        Command::Run => run(&pool, &Registry::new(), &worker_id()).await,
+        Command::Drain => drain(&pool, &registry(&pool)?, &worker_id()).await,
+        Command::Run => run(&pool, &registry(&pool)?, &worker_id()).await,
     };
     pool.close().await;
     result
@@ -152,7 +168,7 @@ async fn run_one(pool: &PgPool, registry: &Registry, worker_id: &str) -> anyhow:
     let _guard = span.enter();
 
     let started = Instant::now();
-    match registry.run(pool, job).await {
+    match registry.run(job).await {
         Ok(()) => {
             if jobs::complete(pool, id, worker_id).await? {
                 tracing::info!(elapsed_ms = started.elapsed().as_millis(), "job succeeded");
@@ -165,6 +181,9 @@ async fn run_one(pool: &PgPool, registry: &Registry, worker_id: &str) -> anyhow:
             match outcome {
                 FailOutcome::Retrying => tracing::warn!(error = %e, "job failed; will retry"),
                 FailOutcome::Dead => tracing::error!(error = %e, "job failed; no attempts left"),
+                FailOutcome::Superseded => {
+                    tracing::warn!(error = %e, "job failed; a newer job does the same work");
+                }
                 FailOutcome::LeaseLost => {
                     tracing::warn!(error = %e, "job failed after lease expired");
                 }

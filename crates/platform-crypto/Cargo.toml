@@ -1,0 +1,23 @@
+[package]
+name = "platform-crypto"
+description = "Envelope encryption: per-household data keys wrapped by a key-encryption key (design doc §12.3)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+aes-gcm.workspace = true
+base64.workspace = true
+rand.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

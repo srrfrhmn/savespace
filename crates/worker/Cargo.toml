@@ -8,8 +8,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+aggregator-plaid.workspace = true
 anyhow.workspace = true
 domain-identity.workspace = true
+domain-sync.workspace = true
 platform-db.workspace = true
 platform-observability.workspace = true
 serde_json.workspace = true

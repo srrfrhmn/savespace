@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists accounts with their latest balances. */
+        get: operations["list_accounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login/finish": {
         parameters: {
             query?: never;
@@ -160,6 +177,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists bank connections and their health. */
+        get: operations["list_connections"];
+        put?: never;
+        /** Connects accounts: exchanges the public token and starts the first sync. */
+        post: operations["create_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Removes a connection at the bank and deletes its accounts and
+         *     transactions. Needs step-up.
+         */
+        delete: operations["delete_connection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/connections/{id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Starts a sync now. */
+        post: operations["sync_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/link_tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Creates a Plaid Link token. Needs step-up (§12.1: a new connection). */
+        post: operations["create_link_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -245,10 +334,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists transactions, newest first. M3 adds filters and search. */
+        get: operations["list_transactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/plaid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receives a Plaid webhook. Plaid signs it with the `Plaid-Verification`
+         *     header (ES256 JWT).
+         */
+        post: operations["plaid_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description A bank or card account. */
+        Account: {
+            /**
+             * Format: int64
+             * @description The available balance in minor units.
+             */
+            available_minor?: number | null;
+            /**
+             * Format: date-time
+             * @description When the balances were read (RFC 3339).
+             */
+            balance_at?: string | null;
+            /** @description The connection ID (`conn_…`). */
+            connection_id: string;
+            /** @description ISO 4217 code. */
+            currency: string;
+            /**
+             * Format: int64
+             * @description The current balance in minor units.
+             */
+            current_minor?: number | null;
+            /** @description The account ID (`acct_…`). */
+            id: string;
+            /**
+             * Format: int64
+             * @description The credit limit in minor units.
+             */
+            limit_minor?: number | null;
+            /** @description The last digits of the account number. */
+            mask?: string | null;
+            /** @description The account name. */
+            name: string;
+            /** @description The official name. */
+            official_name?: string | null;
+            /** @description For example `checking`, `savings`, `credit card`. */
+            subtype?: string | null;
+            /** @description For example `depository`, `credit`, `loan`. */
+            type: string;
+        };
+        /** @description A list of accounts. */
+        AccountList: {
+            /** @description The accounts. */
+            data: components["schemas"]["Account"][];
+        };
         /** @description Finish adding a passkey. */
         AddPasskeyRequest: {
             /** @description The ID from the start response. */
@@ -288,6 +458,38 @@ export interface components {
              */
             options: Record<string, unknown>;
         };
+        /** @description A bank connection. */
+        Connection: {
+            /**
+             * Format: date-time
+             * @description When it was connected (RFC 3339).
+             */
+            created_at: string;
+            /** @description The provider error code of the last failure. */
+            error_code?: string | null;
+            /** @description The connection ID (`conn_…`). */
+            id: string;
+            /** @description The institution name. */
+            institution_name?: string | null;
+            /**
+             * Format: date-time
+             * @description The last successful sync (RFC 3339).
+             */
+            last_synced_at?: string | null;
+            /** @description `syncing`, `ok`, `login_required`, `pending_expiration`, `revoked`, or `error`. */
+            status: string;
+        };
+        /** @description A list of connections. */
+        ConnectionList: {
+            /** @description The connections, oldest first. */
+            data: components["schemas"]["Connection"][];
+        };
+        /** @description Connect accounts with the result of Plaid Link. */
+        CreateConnectionRequest: {
+            institution?: components["schemas"]["Institution"] | null;
+            /** @description The `public_token` from Plaid Link `onSuccess`. */
+            public_token: string;
+        };
         /** @description The JSON body of every error response. */
         ErrorBody: {
             /** @description The error. */
@@ -298,6 +500,25 @@ export interface components {
          * @enum {string}
          */
         ErrorType: "invalid_request_error" | "authentication_error" | "permission_error" | "not_found_error" | "rate_limit_error" | "api_error";
+        /** @description An institution. */
+        Institution: {
+            /** @description The provider's institution ID. */
+            id: string;
+            /** @description The institution name. */
+            name: string;
+        };
+        /** @description A link token for Plaid Link. */
+        LinkToken: {
+            /** @description When it expires (RFC 3339). */
+            expiration?: string | null;
+            /** @description Pass to `Plaid.create({ token })`. */
+            link_token: string;
+        };
+        /** @description Create a link token. */
+        LinkTokenRequest: {
+            /** @description Set to repair an existing connection (update mode). */
+            connection_id?: string | null;
+        };
         /** @description The signed-in person. */
         Me: {
             /** @description Calm mode: hide exact balances until the person taps. */
@@ -385,6 +606,40 @@ export interface components {
              */
             step_up_until: string;
         };
+        /** @description A transaction. */
+        Transaction: {
+            /** @description The account ID (`acct_…`). */
+            account_id: string;
+            /**
+             * Format: int64
+             * @description The amount in minor units. Negative is money out.
+             */
+            amount_minor: number;
+            /** @description The provider's broad category. */
+            category_primary?: string | null;
+            /** @description ISO 4217 code. */
+            currency: string;
+            /**
+             * Format: date
+             * @description The bank date (`YYYY-MM-DD`).
+             */
+            date: string;
+            /** @description The transaction ID (`txn_…`). */
+            id: string;
+            /** @description The merchant, if known. */
+            merchant_name?: string | null;
+            /** @description The description. */
+            name: string;
+            /** @description True while pending. */
+            pending: boolean;
+        };
+        /** @description A page of transactions (§11.5). */
+        TransactionList: {
+            /** @description Newest first. */
+            data: components["schemas"]["Transaction"][];
+            /** @description True if more transactions follow. Pass the last ID as `starting_after`. */
+            has_more: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -394,6 +649,33 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_accounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     login_finish: {
         parameters: {
             query?: never;
@@ -627,6 +909,167 @@ export interface operations {
             };
         };
     };
+    list_connections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateConnectionRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connection ID (`conn_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sync_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connection ID (`conn_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_link_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkTokenRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkToken"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_me: {
         parameters: {
             query?: never;
@@ -758,6 +1201,76 @@ export interface operations {
                 };
             };
             "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_transactions: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100. The default is 50. */
+                limit?: number;
+                /** @description The last transaction ID (`txn_…`) of the previous page. */
+                starting_after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionList"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    plaid_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The Plaid webhook body. */
+        requestBody: {
+            content: {
+                "application/json": Record<string, unknown>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

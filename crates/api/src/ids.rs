@@ -14,6 +14,12 @@ pub const HOUSEHOLD: &str = "hh";
 pub const PASSKEY: &str = "pk";
 /// WebAuthn challenge.
 pub const CHALLENGE: &str = "chl";
+/// Bank connection.
+pub const CONNECTION: &str = "conn";
+/// Bank or card account.
+pub const ACCOUNT: &str = "acct";
+/// Transaction.
+pub const TRANSACTION: &str = "txn";
 
 /// Formats an ID with its prefix.
 pub fn encode(prefix: &str, id: Uuid) -> String {

@@ -7,6 +7,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { meQuery } from "./auth/session";
+import { Accounts } from "./screens/accounts";
 import { Recover, Setup, SignIn } from "./screens/auth";
 import { Home, Security } from "./screens/home";
 
@@ -45,6 +46,13 @@ const homeRoute = createRoute({
   component: Home,
 });
 
+const accountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/accounts",
+  beforeLoad: requireSession,
+  component: Accounts,
+});
+
 const securityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/security",
@@ -74,6 +82,7 @@ const setupRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  accountsRoute,
   securityRoute,
   signInRoute,
   recoverRoute,

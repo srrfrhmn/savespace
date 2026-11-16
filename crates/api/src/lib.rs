@@ -19,6 +19,7 @@ pub mod idempotency;
 pub mod ids;
 pub mod routes;
 pub mod session;
+pub mod worker_kick;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -49,8 +50,12 @@ use url::Url;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
+use aggregator_plaid::{PlaidClient, PlaidEnv};
+use domain_sync::SyncService;
+
 use crate::error::{ApiError, ErrorType};
 use crate::guard::RateLimiter;
+use crate::worker_kick::WorkerKick;
 
 /// The response header that carries the request ID (design doc §11.4).
 pub const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("request-id");
@@ -73,10 +78,24 @@ const READY_TIMEOUT: Duration = Duration::from_secs(5);
 /// The Content Security Policy for the web app.
 ///
 /// `wasm-unsafe-eval` lets the page compile `savespace-core` WASM. It does not
-/// allow JavaScript `eval`. Plaid Link (M2) adds its script and frame origins.
-const CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; \
-    style-src 'self'; img-src 'self' data:; connect-src 'self'; \
-    frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
+/// allow JavaScript `eval`. Plaid Link needs its script, its frame, and the
+/// Plaid API origin of the current environment (Plaid's documented CSP).
+fn csp(plaid: Option<PlaidEnv>) -> String {
+    let (script, frame, connect) = match plaid {
+        Some(env) => (
+            " https://cdn.plaid.com/link/v2/stable/link-initialize.js",
+            "https://cdn.plaid.com/",
+            format!(" {}/", env.base_url()),
+        ),
+        None => ("", "'none'", String::new()),
+    };
+    format!(
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'{script}; \
+         frame-src {frame}; style-src 'self'; img-src 'self' data:; \
+         connect-src 'self'{connect}; frame-ancestors 'none'; base-uri 'none'; \
+         form-action 'self'; object-src 'none'"
+    )
+}
 
 /// Runtime configuration for the API.
 #[derive(Debug, Clone)]
@@ -144,6 +163,12 @@ pub struct AppState {
     pub public_origin: Arc<Url>,
     /// The limiter for sign-in routes.
     pub auth_limiter: RateLimiter,
+    /// Connections and sync. `None` if Plaid is not configured.
+    pub sync: Option<SyncService>,
+    /// The Plaid client, for webhook verification.
+    pub plaid: Option<PlaidClient>,
+    /// Starts the worker job for urgent work (D15).
+    pub worker: WorkerKick,
 }
 
 impl AppState {
@@ -167,7 +192,25 @@ impl AppState {
             public_origin: Arc::new(public_origin),
             // 20 sign-in requests per minute per client, 100 in all.
             auth_limiter: RateLimiter::new(20, 100, Duration::from_mins(1)),
+            sync: None,
+            plaid: None,
+            worker: WorkerKick::disabled(),
         })
+    }
+
+    /// Adds bank connections.
+    #[must_use]
+    pub fn with_sync(mut self, sync: SyncService, plaid: PlaidClient) -> Self {
+        self.sync = Some(sync);
+        self.plaid = Some(plaid);
+        self
+    }
+
+    /// Adds worker kicks.
+    #[must_use]
+    pub fn with_worker(mut self, worker: WorkerKick) -> Self {
+        self.worker = worker;
+        self
     }
 }
 
@@ -243,7 +286,9 @@ async fn api_not_found() -> ApiError {
     servers((url = "/v1")),
     tags(
         (name = "auth", description = "Owner setup, passkey sign-in, and step-up checks."),
-        (name = "me", description = "The signed-in person.")
+        (name = "me", description = "The signed-in person."),
+        (name = "connections", description = "Bank connections, accounts, and transactions."),
+        (name = "webhooks", description = "Signed webhooks from providers.")
     )
 )]
 struct ApiDoc;
@@ -256,6 +301,8 @@ struct V1 {
     session_auth: Router<AppState>,
     /// Other routes that need a session.
     signed_in: Router<AppState>,
+    /// Provider webhooks: signed, no session, no `Origin` check.
+    webhooks: Router<AppState>,
     doc: utoipa::openapi::OpenApi,
 }
 
@@ -265,12 +312,17 @@ fn v1_parts() -> V1 {
         .split_for_parts();
     let (session_auth, d) = routes::auth::session_routes().split_for_parts();
     doc.merge(d);
-    let (signed_in, d) = routes::me::routes().split_for_parts();
+    let (signed_in, d) = routes::me::routes()
+        .merge(routes::connections::routes())
+        .split_for_parts();
+    doc.merge(d);
+    let (webhooks, d) = routes::webhooks::routes().split_for_parts();
     doc.merge(d);
     V1 {
         public_auth,
         session_auth,
         signed_in,
+        webhooks,
         doc,
     }
 }
@@ -286,7 +338,14 @@ fn v1(state: &AppState) -> (Router<AppState>, utoipa::openapi::OpenApi) {
         .merge(parts.signed_in)
         .layer(from_fn_with_state(state.clone(), idempotency::idempotency))
         .layer(from_fn_with_state(state.clone(), session::require_session));
-    let router = parts.public_auth.layer(rate_limit).merge(signed_in);
+    // Browser routes need the app's Origin on unsafe methods. Webhooks are
+    // added after that layer, so it does not apply to them.
+    let router = parts
+        .public_auth
+        .layer(rate_limit)
+        .merge(signed_in)
+        .layer(from_fn_with_state(state.clone(), guard::same_origin))
+        .merge(parts.webhooks);
     (router, parts.doc)
 }
 
@@ -310,8 +369,7 @@ pub fn build_router(state: AppState, web_dir: Option<&Path>) -> Router {
                 async move { ([(CONTENT_TYPE, "application/json")], spec.to_string()) }
             }),
         )
-        .fallback(api_not_found)
-        .layer(from_fn_with_state(state.clone(), guard::same_origin));
+        .fallback(api_not_found);
 
     // JSON responses can hold financial data. Never cache them.
     let json = Router::new()
@@ -329,11 +387,12 @@ pub fn build_router(state: AppState, web_dir: Option<&Path>) -> Router {
         None => json,
     };
 
+    let csp = csp(state.plaid.as_ref().map(PlaidClient::env));
     let router = router
         .layer(from_fn(error::render_errors))
         .layer(from_fn_with_state(state, guard::canonical_host));
 
-    with_security_headers(router)
+    with_security_headers(router, &csp)
         .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER))
         .layer(TraceLayer::new_for_http())
         .layer(SetRequestIdLayer::new(REQUEST_ID_HEADER, MakeReqId))
@@ -359,18 +418,18 @@ fn web_app(dir: &Path) -> Router {
     Router::new().nest("/assets", assets).merge(spa)
 }
 
-/// Security headers for every response (design doc §12).
-const SECURITY_HEADERS: [(HeaderName, &str); 6] = [
-    (CONTENT_SECURITY_POLICY, CSP),
+/// Security headers for every response (design doc §12), except the CSP.
+const SECURITY_HEADERS: [(HeaderName, &str); 5] = [
     (
         STRICT_TRANSPORT_SECURITY,
         "max-age=63072000; includeSubDomains",
     ),
     (X_CONTENT_TYPE_OPTIONS, "nosniff"),
     (REFERRER_POLICY, "no-referrer"),
+    // Plaid Link opens bank sign-in (OAuth) in a pop-up window.
     (
         HeaderName::from_static("cross-origin-opener-policy"),
-        "same-origin",
+        "same-origin-allow-popups",
     ),
     (
         HeaderName::from_static("permissions-policy"),
@@ -378,13 +437,14 @@ const SECURITY_HEADERS: [(HeaderName, &str); 6] = [
     ),
 ];
 
-fn with_security_headers(router: Router) -> Router {
+fn with_security_headers(router: Router, csp: &str) -> Router {
+    let csp = HeaderValue::from_str(csp)
+        .unwrap_or_else(|_| HeaderValue::from_static("default-src 'none'"));
     SECURITY_HEADERS
         .into_iter()
+        .map(|(name, value)| (name, HeaderValue::from_static(value)))
+        .chain([(CONTENT_SECURITY_POLICY, csp)])
         .fold(router, |router, (name, value)| {
-            router.layer(SetResponseHeaderLayer::if_not_present(
-                name,
-                HeaderValue::from_static(value),
-            ))
+            router.layer(SetResponseHeaderLayer::if_not_present(name, value))
         })
 }

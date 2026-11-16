@@ -15,6 +15,35 @@
     }
   ],
   "paths": {
+    "/accounts": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Lists accounts with their latest balances.",
+        "operationId": "list_accounts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/login/finish": {
       "post": {
         "tags": [
@@ -275,6 +304,193 @@
         }
       }
     },
+    "/connections": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Lists bank connections and their health.",
+        "operationId": "list_connections",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Connects accounts: exchanges the public token and starts the first sync.",
+        "operationId": "create_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConnectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connections/{id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Removes a connection at the bank and deletes its accounts and\ntransactions. Needs step-up.",
+        "operationId": "delete_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connection ID (`conn_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connections/{id}/sync": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Starts a sync now.",
+        "operationId": "sync_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connection ID (`conn_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/link_tokens": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Creates a Plaid Link token. Needs step-up (§12.1: a new connection).",
+        "operationId": "create_link_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkToken"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -432,10 +648,204 @@
           }
         }
       }
+    },
+    "/transactions": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Lists transactions, newest first. M3 adds filters and search.",
+        "operationId": "list_transactions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100. The default is 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "description": "The last transaction ID (`txn_…`) of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionList"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/plaid": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Receives a Plaid webhook. Plaid signs it with the `Plaid-Verification`\nheader (ES256 JWT).",
+        "operationId": "plaid_webhook",
+        "requestBody": {
+          "description": "The Plaid webhook body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Account": {
+        "type": "object",
+        "description": "A bank or card account.",
+        "required": [
+          "id",
+          "connection_id",
+          "name",
+          "type",
+          "currency"
+        ],
+        "properties": {
+          "available_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The available balance in minor units."
+          },
+          "balance_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the balances were read (RFC 3339)."
+          },
+          "connection_id": {
+            "type": "string",
+            "description": "The connection ID (`conn_…`)."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 code."
+          },
+          "current_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The current balance in minor units."
+          },
+          "id": {
+            "type": "string",
+            "description": "The account ID (`acct_…`)."
+          },
+          "limit_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The credit limit in minor units."
+          },
+          "mask": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The last digits of the account number."
+          },
+          "name": {
+            "type": "string",
+            "description": "The account name."
+          },
+          "official_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The official name."
+          },
+          "subtype": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For example `checking`, `savings`, `credit card`."
+          },
+          "type": {
+            "type": "string",
+            "description": "For example `depository`, `credit`, `loan`."
+          }
+        }
+      },
+      "AccountList": {
+        "type": "object",
+        "description": "A list of accounts.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Account"
+            },
+            "description": "The accounts."
+          }
+        }
+      },
       "AddPasskeyRequest": {
         "type": "object",
         "description": "Finish adding a passkey.",
@@ -532,6 +942,92 @@
           }
         }
       },
+      "Connection": {
+        "type": "object",
+        "description": "A bank connection.",
+        "required": [
+          "id",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was connected (RFC 3339)."
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The provider error code of the last failure."
+          },
+          "id": {
+            "type": "string",
+            "description": "The connection ID (`conn_…`)."
+          },
+          "institution_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The institution name."
+          },
+          "last_synced_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The last successful sync (RFC 3339)."
+          },
+          "status": {
+            "type": "string",
+            "description": "`syncing`, `ok`, `login_required`, `pending_expiration`, `revoked`, or `error`."
+          }
+        }
+      },
+      "ConnectionList": {
+        "type": "object",
+        "description": "A list of connections.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Connection"
+            },
+            "description": "The connections, oldest first."
+          }
+        }
+      },
+      "CreateConnectionRequest": {
+        "type": "object",
+        "description": "Connect accounts with the result of Plaid Link.",
+        "required": [
+          "public_token"
+        ],
+        "properties": {
+          "institution": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Institution",
+                "description": "The institution from the Link metadata, for display."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_token": {
+            "type": "string",
+            "description": "The `public_token` from Plaid Link `onSuccess`."
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "The JSON body of every error response.",
@@ -556,6 +1052,57 @@
           "rate_limit_error",
           "api_error"
         ]
+      },
+      "Institution": {
+        "type": "object",
+        "description": "An institution.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The provider's institution ID."
+          },
+          "name": {
+            "type": "string",
+            "description": "The institution name."
+          }
+        }
+      },
+      "LinkToken": {
+        "type": "object",
+        "description": "A link token for Plaid Link.",
+        "required": [
+          "link_token"
+        ],
+        "properties": {
+          "expiration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it expires (RFC 3339)."
+          },
+          "link_token": {
+            "type": "string",
+            "description": "Pass to `Plaid.create({ token })`."
+          }
+        }
+      },
+      "LinkTokenRequest": {
+        "type": "object",
+        "description": "Create a link token.",
+        "properties": {
+          "connection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set to repair an existing connection (update mode)."
+          }
+        }
       },
       "Me": {
         "type": "object",
@@ -751,6 +1298,86 @@
             "description": "Step-up actions are allowed until this time (RFC 3339)."
           }
         }
+      },
+      "Transaction": {
+        "type": "object",
+        "description": "A transaction.",
+        "required": [
+          "id",
+          "account_id",
+          "amount_minor",
+          "currency",
+          "date",
+          "name",
+          "pending"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "The account ID (`acct_…`)."
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The amount in minor units. Negative is money out."
+          },
+          "category_primary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The provider's broad category."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 code."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "The bank date (`YYYY-MM-DD`)."
+          },
+          "id": {
+            "type": "string",
+            "description": "The transaction ID (`txn_…`)."
+          },
+          "merchant_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The merchant, if known."
+          },
+          "name": {
+            "type": "string",
+            "description": "The description."
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "True while pending."
+          }
+        }
+      },
+      "TransactionList": {
+        "type": "object",
+        "description": "A page of transactions (§11.5).",
+        "required": [
+          "data",
+          "has_more"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            },
+            "description": "Newest first."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True if more transactions follow. Pass the last ID as `starting_after`."
+          }
+        }
       }
     }
   },
@@ -762,6 +1389,14 @@
     {
       "name": "me",
       "description": "The signed-in person."
+    },
+    {
+      "name": "connections",
+      "description": "Bank connections, accounts, and transactions."
+    },
+    {
+      "name": "webhooks",
+      "description": "Signed webhooks from providers."
     }
   ]
 }

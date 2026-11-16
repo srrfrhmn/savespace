@@ -88,6 +88,10 @@ export function describeError(error: unknown): string {
         return "Add another passkey before you remove this one.";
       case "name_invalid":
         return "Use 1 to 100 characters.";
+      case "aggregator_unavailable":
+        return "The bank connection service did not answer. Try again in a few minutes.";
+      case "aggregator_error":
+        return "The bank connection service returned an error. Try again later.";
       default:
         return `Something went wrong. Try again. (Reference: ${error.requestId ?? error.code})`;
     }

@@ -86,6 +86,34 @@ async fn dedupe_key_allows_one_live_job(pool: PgPool) {
 
 #[sqlx::test]
 #[ignore = "needs DATABASE_URL"]
+async fn running_job_does_not_block_new_work_and_retry_is_superseded(pool: PgPool) {
+    let mut job = NewJob::new("t.sync", json!({}));
+    job.dedupe_key = Some("conn-1");
+    jobs::enqueue(&pool, &job).await.unwrap().unwrap();
+    let running = jobs::claim(&pool, &["t.sync"], "w1", LEASE)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // New work during the run is queued, not dropped.
+    let next = jobs::enqueue(&pool, &job).await.unwrap();
+    assert!(next.is_some());
+
+    // The running job fails. Its retry would repeat the queued work.
+    assert_eq!(
+        jobs::fail(&pool, running.id, "w1", "boom").await.unwrap(),
+        FailOutcome::Superseded
+    );
+    let statuses: Vec<String> =
+        sqlx::query_scalar("SELECT status FROM app.jobs ORDER BY created_at")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(statuses, ["superseded", "queued"]);
+}
+
+#[sqlx::test]
+#[ignore = "needs DATABASE_URL"]
 async fn fail_retries_with_backoff_then_dead(pool: PgPool) {
     jobs::enqueue(&pool, &NewJob::new("t.fail", json!({})))
         .await
