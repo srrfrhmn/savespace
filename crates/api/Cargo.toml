@@ -14,6 +14,7 @@ axum.workspace = true
 domain-categorize.workspace = true
 domain-identity.workspace = true
 domain-ledger.workspace = true
+domain-recurring.workspace = true
 domain-sync.workspace = true
 jiff.workspace = true
 platform-db.workspace = true

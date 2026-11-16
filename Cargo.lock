@@ -123,6 +123,7 @@ dependencies = [
  "domain-categorize",
  "domain-identity",
  "domain-ledger",
+ "domain-recurring",
  "domain-sync",
  "hex",
  "http-body-util",
@@ -1025,11 +1026,13 @@ dependencies = [
  "jiff 1.0.0",
  "jiff-sqlx",
  "platform-db",
+ "savespace-core",
  "serde",
  "serde_json",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1040,6 +1043,18 @@ version = "0.1.0"
 [[package]]
 name = "domain-recurring"
 version = "0.1.0"
+dependencies = [
+ "jiff 1.0.0",
+ "jiff-sqlx",
+ "platform-db",
+ "savespace-core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "domain-sync"
@@ -1838,6 +1853,7 @@ checksum = "9cc767b5763de45e810109520123bb2829a653f3a7ed9be40b2bc4f81158f595"
 dependencies = [
  "jiff-core 1.0.0",
  "jiff-static 1.0.0",
+ "jiff-tzdb 1.0.0",
  "jiff-tzdb-platform 1.0.0",
  "log",
  "portable-atomic",
@@ -4660,6 +4676,8 @@ dependencies = [
  "anyhow",
  "domain-categorize",
  "domain-identity",
+ "domain-ledger",
+ "domain-recurring",
  "domain-sync",
  "platform-db",
  "platform-observability",

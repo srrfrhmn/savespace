@@ -34,6 +34,28 @@ pub fn parse_money(text: &str, currency: &str) -> Result<i64, JsError> {
     Ok(savespace_core::parse_money_input(text, currency, Locale::EnUs)?.minor())
 }
 
+/// The calm-mode state: `covered`, `tight`, or `needs_attention` (design doc
+/// §6.1). Amounts are minor units as `BigInt`.
+///
+/// # Errors
+///
+/// Returns an error for an unsupported currency or overflow.
+#[wasm_bindgen(js_name = calmState)]
+pub fn calm_state(
+    cash: i64,
+    bills: i64,
+    flex_left: i64,
+    currency: &str,
+) -> Result<String, JsError> {
+    let currency: Currency = currency.parse()?;
+    let m = |minor| Money::from_minor(minor, currency);
+    Ok(
+        savespace_core::budget::calm_state(m(cash), m(bills), m(flex_left))?
+            .as_str()
+            .to_owned(),
+    )
+}
+
 /// The version of `savespace-core` in this build.
 #[wasm_bindgen(js_name = coreVersion)]
 pub fn core_version() -> String {

@@ -59,6 +59,28 @@ pub fn parse_money(text: &str, currency: &str) -> Result<i64, CoreError> {
         })
 }
 
+/// The calm-mode state: `covered`, `tight`, or `needs_attention`.
+///
+/// # Errors
+///
+/// [`CoreError::UnsupportedCurrency`], or [`CoreError::InvalidAmount`] on
+/// overflow.
+#[uniffi::export]
+pub fn calm_state(
+    cash: i64,
+    bills: i64,
+    flex_left: i64,
+    currency: &str,
+) -> Result<String, CoreError> {
+    let currency = self::currency(currency)?;
+    let m = |minor| Money::from_minor(minor, currency);
+    savespace_core::budget::calm_state(m(cash), m(bills), m(flex_left))
+        .map(|s| s.as_str().to_owned())
+        .map_err(|e| CoreError::InvalidAmount {
+            reason: e.to_string(),
+        })
+}
+
 /// The version of `savespace-core` in this build.
 #[uniffi::export]
 pub fn core_version() -> String {

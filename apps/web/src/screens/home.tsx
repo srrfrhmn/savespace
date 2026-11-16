@@ -3,9 +3,13 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { Form } from "react-aria-components";
 import { addPasskey, deletePasskey, meQuery, newRecoveryCodes, signOut } from "../auth/session";
+import { CalmCard } from "../budget/calm";
+import { budgetQuery, monthKey, recurringQuery, setCalmMode } from "../budget/data";
 import { accountsQuery, type Connection, connectionsQuery } from "../connections/data";
+import { bankDate } from "../format";
 import { Button, describeError, Notice, Page, TextField } from "../ui";
 import { RecoveryCodes } from "./auth";
+import { seriesLine, upcoming } from "./recurring";
 
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -24,20 +28,74 @@ function useSignOut() {
 }
 
 export function Home() {
+  const queryClient = useQueryClient();
   const me = useQuery(meQuery).data;
   const doSignOut = useSignOut();
 
   const connections = useQuery(connectionsQuery).data;
   const accounts = useQuery(accountsQuery).data;
+  const ready = (connections?.length ?? 0) > 0;
+  const budget = useQuery({ ...budgetQuery(monthKey(new Date())), enabled: ready });
+  const recurring = useQuery({ ...recurringQuery, enabled: ready });
+  const soon = upcoming(recurring.data ?? [], 7).slice(0, 3);
+  const [calmError, setCalmError] = useState<string | null>(null);
 
+  /** Optimistic: the switch moves at once and moves back if the save fails. */
+  async function toggleCalm(on: boolean) {
+    setCalmError(null);
+    const before = queryClient.getQueryData(meQuery.queryKey);
+    queryClient.setQueryData(meQuery.queryKey, (old) => (old ? { ...old, calm_mode: on } : old));
+    try {
+      queryClient.setQueryData(meQuery.queryKey, await setCalmMode(on));
+    } catch (e) {
+      queryClient.setQueryData(meQuery.queryKey, before);
+      setCalmError(describeError(e));
+    }
+  }
+
+  const calm = budget.data?.calm;
   return (
     <Page title={me ? `Hello, ${me.display_name}` : "SaveSpace"}>
-      <section className="card" aria-label="Status">
-        <HomeStatus connections={connections} accountCount={accounts?.length ?? 0} />
-      </section>
+      {calm && budget.data ? (
+        <CalmCard calm={calm} currency={budget.data.currency} calmMode={me?.calm_mode ?? false} />
+      ) : (
+        <section className="card" aria-label="Status">
+          <HomeStatus connections={connections} accountCount={accounts?.length ?? 0} />
+        </section>
+      )}
+      {soon.length > 0 ? (
+        <section className="card" aria-labelledby="soon-h">
+          <h2 id="soon-h">Coming up this week</h2>
+          <ul className="list">
+            {soon.map((s) => (
+              <li key={s.id}>
+                <span>
+                  <strong>{s.merchant_name}</strong>
+                  <span className="meta">
+                    {bankDate(s.next_date)}. {seriesLine(s)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {me ? (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={me.calm_mode}
+            onChange={(e) => void toggleCalm(e.target.checked)}
+          />
+          Calm mode: show a word instead of balances
+        </label>
+      ) : null}
+      <Notice tone="problem">{calmError}</Notice>
       <nav className="links" aria-label="Main">
-        <Link to="/accounts">Accounts</Link>
+        <Link to="/budget">Budget</Link>
         <Link to="/transactions">Transactions</Link>
+        <Link to="/recurring">Recurring</Link>
+        <Link to="/accounts">Accounts</Link>
         <Link to="/settings/security">Security</Link>
         <Button variant="quiet" onPress={doSignOut}>
           Sign out
@@ -81,7 +139,7 @@ function HomeStatus({
   return (
     <p>
       {accountCount === 1 ? "1 account is" : `${accountCount} accounts are`} connected and up to
-      date. Budgets and insights come next.
+      date. <Link to="/budget">Open your budget</Link>
     </p>
   );
 }

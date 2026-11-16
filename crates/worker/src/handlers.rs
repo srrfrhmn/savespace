@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use domain_categorize::CategorizeService;
+use domain_recurring::RecurringService;
 use domain_sync::{SyncError, SyncJob, SyncService};
 use platform_db::PgPool;
 use platform_db::jobs::Job;
@@ -22,6 +23,7 @@ pub(crate) struct Ctx {
     /// `None` if Plaid is not configured. Sync jobs then fail and retry.
     pub(crate) sync: Option<SyncService>,
     pub(crate) categorize: CategorizeService,
+    pub(crate) recurring: RecurringService,
 }
 
 type HandlerFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
@@ -54,6 +56,9 @@ impl Registry {
         handlers.insert(domain_sync::POLL_JOB, |ctx, _| Box::pin(poll(ctx)));
         handlers.insert(domain_categorize::ENRICH_JOB, |ctx, job| {
             Box::pin(enrich(ctx, job))
+        });
+        handlers.insert(domain_recurring::DETECT_JOB, |ctx, job| {
+            Box::pin(detect_recurring(ctx, job))
         });
         Self {
             ctx: Arc::new(ctx),
@@ -164,6 +169,14 @@ async fn enrich(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
     let household_id = household_of(&job)?;
     let updated = ctx.categorize.enrich_household(household_id).await?;
     tracing::info!(updated, "transactions enriched");
+    Ok(())
+}
+
+/// `recurring.household`: finds recurring series after enrichment or an edit.
+async fn detect_recurring(ctx: Arc<Ctx>, job: Job) -> anyhow::Result<()> {
+    let household_id = household_of(&job)?;
+    let series = ctx.recurring.detect_household(household_id).await?;
+    tracing::info!(series, "recurring series found");
     Ok(())
 }
 

@@ -335,3 +335,62 @@ fieldset.confirm legend {
   border-color: var(--text);
   border-width: 2px;
 }
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.month-nav h2 {
+  font-size: 1.125rem;
+  margin: 0;
+  text-align: center;
+}
+
+.calm-state {
+  font-size: 1.125rem;
+  margin: 0 0 0.75rem;
+}
+
+.calm-needs_attention {
+  border-left: 4px solid var(--text);
+}
+
+.facts {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.facts strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.budget-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+.budget-text {
+  display: grid;
+}
+
+.budget-panel {
+  padding: 0 0 0.75rem;
+}

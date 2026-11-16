@@ -646,6 +646,26 @@ impl Identity {
         })
     }
 
+    /// Changes the person's display settings. `None` leaves a value as it is.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error.
+    pub async fn update_settings(
+        &self,
+        session: &SessionInfo,
+        calm_mode: Option<bool>,
+    ) -> Result<()> {
+        let mut tx = platform_db::tenant_tx(&self.pool, session.household_id).await?;
+        sqlx::query("UPDATE app.users SET calm_mode = coalesce($2, calm_mode) WHERE id = $1")
+            .bind(session.user_id)
+            .bind(calm_mode)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn user_passkeys(&self, session: &SessionInfo) -> Result<Vec<Passkey>> {
         let mut tx = platform_db::tenant_tx(&self.pool, session.household_id).await?;
         let rows: Vec<(Value,)> =

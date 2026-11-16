@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { meQuery } from "../auth/session";
 import {
   type Account,
   accountsQuery,
@@ -69,6 +70,9 @@ function accountLine(a: Account): string {
 
 export function Accounts() {
   const queryClient = useQueryClient();
+  const calmMode = useQuery(meQuery).data?.calm_mode ?? false;
+  const [revealed, setRevealed] = useState(false);
+  const hideBalances = calmMode && !revealed;
   const connections = useQuery(connectionsQuery);
   const accounts = useQuery(accountsQuery);
   const recent = useQuery(recentTransactionsQuery);
@@ -120,6 +124,11 @@ export function Accounts() {
       </Button>
       <Notice>{message}</Notice>
       <Notice tone="problem">{error}</Notice>
+      {calmMode ? (
+        <Button variant="quiet" onPress={() => setRevealed(!revealed)}>
+          {revealed ? "Hide balances" : "Show balances"}
+        </Button>
+      ) : null}
 
       {connections.data?.length === 0 ? (
         <section className="card">
@@ -142,7 +151,9 @@ export function Accounts() {
                       <strong>{a.name}</strong>
                       <span className="meta">{accountLine(a)}</span>
                     </span>
-                    <span className="amount">{money(a.current_minor, a.currency)}</span>
+                    <span className="amount">
+                      {hideBalances ? "Hidden" : money(a.current_minor, a.currency)}
+                    </span>
                   </li>
                 ))}
               </ul>

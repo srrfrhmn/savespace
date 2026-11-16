@@ -11,9 +11,11 @@ publish.workspace = true
 jiff.workspace = true
 jiff-sqlx.workspace = true
 platform-db.workspace = true
+savespace-core.workspace = true
 serde.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

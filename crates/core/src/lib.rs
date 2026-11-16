@@ -11,14 +11,18 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::float_arithmetic)]
 
+pub mod budget;
 mod currency;
+pub mod date;
 mod format;
 mod money;
 mod parse;
 mod ratio;
+pub mod recurring;
 pub mod stats;
 
 pub use currency::{Currency, ParseCurrencyError};
+pub use date::Day;
 pub use format::{Locale, format_money};
 pub use money::{AllocationError, Money, MoneyError};
 pub use parse::{ParseAmountError, parse_decimal, parse_money_input};

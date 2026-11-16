@@ -40,6 +40,7 @@ use axum::{Json, Router};
 use domain_categorize::CategorizeService;
 use domain_identity::{Identity, IdentityConfig};
 use domain_ledger::LedgerService;
+use domain_recurring::RecurringService;
 use platform_db::PgPool;
 use serde::Serialize;
 use tower_http::request_id::{
@@ -178,6 +179,8 @@ pub struct AppState {
     pub ledger: LedgerService,
     /// Categories and rules.
     pub categorize: CategorizeService,
+    /// Recurring series.
+    pub recurring: RecurringService,
 }
 
 impl AppState {
@@ -198,6 +201,7 @@ impl AppState {
         Ok(Self {
             ledger: LedgerService::new(db.clone()),
             categorize: CategorizeService::new(db.clone()),
+            recurring: RecurringService::new(db.clone()),
             db,
             identity,
             public_origin: Arc::new(public_origin),
@@ -300,6 +304,7 @@ async fn api_not_found() -> ApiError {
         (name = "me", description = "The signed-in person."),
         (name = "connections", description = "Bank connections and accounts."),
         (name = "transactions", description = "Transactions, categories, and categorization rules."),
+        (name = "budget", description = "The flex budget, the calm state, and recurring series."),
         (name = "webhooks", description = "Signed webhooks from providers.")
     )
 )]
@@ -327,6 +332,7 @@ fn v1_parts() -> V1 {
     let (signed_in, d) = routes::me::routes()
         .merge(routes::connections::routes())
         .merge(routes::transactions::routes())
+        .merge(routes::budget::routes())
         .split_for_parts();
     doc.merge(d);
     let (webhooks, d) = routes::webhooks::routes().split_for_parts();
