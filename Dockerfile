@@ -30,7 +30,7 @@ RUN cargo build --release --locked -p api -p worker \
  && wasm-pack build bindings/wasm --target web --release \
       --out-dir pkg --out-name savespace_core --scope savespace
 
-FROM node:24-trixie-slim@sha256:af02d57b57719b9657a45199a79264a9437940cd55b3c7b3fc99615654f124a0 AS web
+FROM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
 WORKDIR /src
 RUN npm install -g pnpm@12.16.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
