@@ -14,12 +14,14 @@
 mod currency;
 mod format;
 mod money;
+mod parse;
 mod ratio;
 pub mod stats;
 
 pub use currency::{Currency, ParseCurrencyError};
 pub use format::{Locale, format_money};
 pub use money::{AllocationError, Money, MoneyError};
+pub use parse::{ParseAmountError, parse_decimal};
 pub use ratio::BasisPoints;
 
 /// The version of this crate. Clients show it in diagnostics.

@@ -8,12 +8,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+aggregator-plaid.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 domain-identity.workspace = true
+domain-sync.workspace = true
 jiff.workspace = true
 platform-db.workspace = true
 platform-observability.workspace = true
+reqwest.workspace = true
 savespace-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -30,7 +33,12 @@ webauthn-rs.workspace = true
 http-body-util.workspace = true
 
 [dev-dependencies]
+base64.workspace = true
+hex.workspace = true
+p256.workspace = true
+platform-crypto.workspace = true
 sqlx.workspace = true
+wiremock.workspace = true
 
 [lints]
 workspace = true

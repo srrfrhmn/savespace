@@ -618,6 +618,14 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 - **Recurring detection.** Group by merchant. Detect cadence (weekly, biweekly, monthly, annual) and an amount band. Update `recurring_series`.
 - **Events.** Write `transactions.changed` to the outbox. This starts the insight job and the budget recalculation.
 
+**Phase 1 implementation notes (M2).**
+
+- Plaid amounts are positive for money out. The adapter negates them: in SaveSpace, negative is money out. Amounts are parsed from the JSON text with `savespace_core::parse_decimal`, never through floating point.
+- A sync fetches all pages first, then applies them in one transaction. The apply step compares the stored cursor with the cursor the sync started from. If another sync moved it, nothing is written and the job retries.
+- A job's dedupe key applies to queued jobs only. A webhook that arrives during a sync queues the next sync instead of being lost. A failed retry that duplicates queued work is marked `superseded`.
+- The worker job starts right away after a new connection or a webhook (D15). The 6-hour fallback poll runs in each hourly worker run.
+- Access tokens use envelope encryption (`platform-crypto`): a household data key wraps them with AES-256-GCM, and `token-kek` wraps the household key (§8.8).
+
 ### 10.3 Categorization model
 
 - Input features: normalized merchant, MCC (if present), provider category, amount bucket, day of week, account type.
@@ -686,6 +694,8 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `POST` | `/v1/connections` | Exchange a public token. Create a connection. |
 | `GET` | `/v1/me` | Get the signed-in person and security settings. |
 | `POST` | `/v1/auth/login/start`, `/v1/auth/login/finish` | Passkey sign-in. Also `setup/*`, `recover`, `verify/*` (step-up), and `logout`. |
+| `GET` | `/v1/connections` | List connections and their health. Also `POST /v1/connections/{id}/sync` and `DELETE /v1/connections/{id}` (step-up). |
+| `POST` | `/v1/webhooks/plaid` | Plaid webhooks. Signed (ES256 JWT). No session. |
 | `GET` | `/v1/accounts` | List accounts. |
 | `GET` | `/v1/transactions` | List transactions. Filters: account, category, date range, search. |
 | `PATCH` | `/v1/transactions/{id}` | Edit category, merchant, note, hidden. |
@@ -974,6 +984,7 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | D10 | 2026-11-15 | MVP insight text uses templates only. LLM rephrase (Section 7.5) is off. | The Claude API has no free tier. Templates are already the fallback path (D5). Turn it on per rule later. |
 | D11 | 2026-11-15 | Phase 1 supports `en-US` and USD only. | One user. Hand-written formatting in `savespace-core` until ICU4X. |
 | D12 | 2026-11-16 | Phase 1 sign-in: passkeys plus 10 single-use recovery codes. No email fallback. A one-time setup code registers the first passkey, then setup closes. | One user. An email fallback needs an email vendor and a sending domain. Recovery codes need neither. |
+| D15 | 2026-11-17 | MVP live updates use polling (the web app polls a syncing connection every 3 s). SSE (§11.5) comes later. After a new connection or a webhook, the API starts the worker job right away through the Cloud Run Admin API. | Cloud Run throttles CPU between requests, and the scheduled worker runs once an hour. Without the start, the first sync could wait an hour. |
 
 ---
 

@@ -192,3 +192,45 @@ a {
     touch-action: pan-x pan-y pinch-zoom;
   }
 }
+
+.status {
+  color: var(--muted);
+  margin: 0 0 1rem;
+}
+
+.status-action {
+  color: var(--text);
+  border-left: 3px solid var(--accent);
+  padding-left: 0.75rem;
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+fieldset.confirm {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+fieldset.confirm legend {
+  float: left;
+  margin-right: 0.75rem;
+}

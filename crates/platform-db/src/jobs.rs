@@ -63,6 +63,9 @@ pub enum FailOutcome {
     Dead,
     /// This worker no longer holds the lease. Nothing changed.
     LeaseLost,
+    /// A job with the same kind and dedupe key is already queued, so this one
+    /// does not retry. It is in the `superseded` state.
+    Superseded,
 }
 
 fn secs(d: Duration) -> i64 {
@@ -71,7 +74,8 @@ fn secs(d: Duration) -> i64 {
 
 /// Adds a job. Run it in the same transaction as the domain write that needs it.
 ///
-/// Returns `None` if a queued or running job has the same kind and dedupe key.
+/// Returns `None` if a queued job has the same kind and dedupe key. A running
+/// job does not block a new one, so work that arrives during a run is not lost.
 ///
 /// # Errors
 ///
@@ -84,7 +88,7 @@ pub async fn enqueue<'e, E: PgExecutor<'e>>(
         "INSERT INTO app.jobs (kind, payload, dedupe_key, run_after)
          VALUES ($1, $2, $3, now() + make_interval(secs => $4::double precision))
          ON CONFLICT (kind, dedupe_key)
-           WHERE dedupe_key IS NOT NULL AND status IN ('queued', 'running')
+           WHERE dedupe_key IS NOT NULL AND status = 'queued'
            DO NOTHING
          RETURNING id",
     )
@@ -174,7 +178,14 @@ pub async fn fail<'e, E: PgExecutor<'e>>(
 ) -> Result<FailOutcome, sqlx::Error> {
     let status: Option<String> = sqlx::query_scalar(
         "UPDATE app.jobs
-         SET status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
+         SET status = CASE
+                 WHEN attempts >= max_attempts THEN 'dead'
+                 WHEN dedupe_key IS NOT NULL AND EXISTS (
+                     SELECT 1 FROM app.jobs q
+                     WHERE q.kind = jobs.kind AND q.dedupe_key = jobs.dedupe_key
+                       AND q.status = 'queued' AND q.id <> jobs.id) THEN 'superseded'
+                 ELSE 'queued'
+             END,
              run_after = CASE
                  WHEN attempts >= max_attempts THEN run_after
                  ELSE now() + make_interval(
@@ -195,6 +206,7 @@ pub async fn fail<'e, E: PgExecutor<'e>>(
     Ok(match status.as_deref() {
         None => FailOutcome::LeaseLost,
         Some("dead") => FailOutcome::Dead,
+        Some("superseded") => FailOutcome::Superseded,
         Some(_) => FailOutcome::Retrying,
     })
 }
@@ -210,7 +222,14 @@ pub async fn fail<'e, E: PgExecutor<'e>>(
 pub async fn requeue_expired<'e, E: PgExecutor<'e>>(executor: E) -> Result<u64, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE app.jobs
-         SET status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
+         SET status = CASE
+                 WHEN attempts >= max_attempts THEN 'dead'
+                 WHEN dedupe_key IS NOT NULL AND EXISTS (
+                     SELECT 1 FROM app.jobs q
+                     WHERE q.kind = jobs.kind AND q.dedupe_key = jobs.dedupe_key
+                       AND q.status = 'queued' AND q.id <> jobs.id) THEN 'superseded'
+                 ELSE 'queued'
+             END,
              locked_by = NULL,
              locked_until = NULL,
              last_error = coalesce(last_error, 'lease expired'),

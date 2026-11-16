@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { Form } from "react-aria-components";
 import { addPasskey, deletePasskey, meQuery, newRecoveryCodes, signOut } from "../auth/session";
+import { accountsQuery, type Connection, connectionsQuery } from "../connections/data";
 import { Button, describeError, Notice, Page, TextField } from "../ui";
 import { RecoveryCodes } from "./auth";
 
@@ -26,18 +27,61 @@ export function Home() {
   const me = useQuery(meQuery).data;
   const doSignOut = useSignOut();
 
+  const connections = useQuery(connectionsQuery).data;
+  const accounts = useQuery(accountsQuery).data;
+
   return (
     <Page title={me ? `Hello, ${me.display_name}` : "SaveSpace"}>
       <section className="card" aria-label="Status">
-        <p>Connect a bank account to start. Account connection comes in the next update.</p>
+        <HomeStatus connections={connections} accountCount={accounts?.length ?? 0} />
       </section>
       <nav className="links" aria-label="Main">
+        <Link to="/accounts">Accounts</Link>
         <Link to="/settings/security">Security</Link>
         <Button variant="quiet" onPress={doSignOut}>
           Sign out
         </Button>
       </nav>
     </Page>
+  );
+}
+
+/** One calm status line. Insights replace it in M5. */
+function HomeStatus({
+  connections,
+  accountCount,
+}: {
+  connections: Connection[] | undefined;
+  accountCount: number;
+}) {
+  if (!connections) {
+    return <p>Loading.</p>;
+  }
+  if (connections.length === 0) {
+    return (
+      <p>
+        Connect a bank account to start. <Link to="/accounts">Connect an account</Link>
+      </p>
+    );
+  }
+  if (connections.some((c) => c.status === "syncing")) {
+    return <p>Getting your accounts and transactions. This can take a minute.</p>;
+  }
+  const attention = connections.filter((c) =>
+    ["login_required", "pending_expiration", "revoked"].includes(c.status),
+  );
+  if (attention.length > 0) {
+    return (
+      <p>
+        A bank connection needs you to sign in again. <Link to="/accounts">Open accounts</Link>
+      </p>
+    );
+  }
+  return (
+    <p>
+      {accountCount === 1 ? "1 account is" : `${accountCount} accounts are`} connected and up to
+      date. Budgets and insights come next.
+    </p>
   );
 }
 

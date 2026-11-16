@@ -106,6 +106,16 @@ The next deploy sends traffic to the new revision again. Migrations do not roll 
 | Pause the worker | `gcloud scheduler jobs pause savespace-worker-drain --location us-east1` |
 | Database shell | `psql "$(gcloud secrets versions access latest --secret database-url-migrate)"` (needs local `psql`) |
 
+## Bank connections (Plaid)
+
+- The api and the worker read `PLAID_ENV`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, and `SAVESPACE_TOKEN_KEK`. Without the Plaid values, bank connections are off and the app says so.
+- Plaid sends webhooks to `<app url>/v1/webhooks/plaid`. The link token sets this URL, so nothing needs setup in the Plaid dashboard.
+- After a new connection or a webhook, the api starts `savespace-worker` right away (`SAVESPACE_WORKER_JOB`, D15). At most one start per 20 seconds. The hourly run is the fallback.
+- **Sandbox test:** on the Accounts page, connect **First Platypus Bank** (the plain entry, not OAuth) with `user_good` / `pass_good`. To test webhooks, call Plaid `/sandbox/item/fire_webhook` with `SYNC_UPDATES_AVAILABLE` for the item.
+- **Check a sync:** worker logs show `sync finished` with counts. `SELECT status, error_code, last_synced_at FROM app.connections` (owner role) shows health.
+- **A connection needs the person:** status `login_required` or `pending_expiration`. The Accounts page shows **Sign in to your bank** (Plaid update mode).
+- **`token-kek`:** do not rotate it yet. Rotation needs a re-wrap of every household key (`app.households.dek_wrapped`). Losing it makes all stored Plaid tokens unreadable. Then remove and connect the banks again.
+
 ## Sign-in recovery
 
 - **Lost a device, have another passkey:** sign in with the other passkey. In **Security**, remove the lost passkey.
