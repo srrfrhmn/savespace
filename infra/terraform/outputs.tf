@@ -1,6 +1,6 @@
 output "api_url" {
-  description = "The public URL of the web app and API."
-  value       = local.deploy ? google_cloud_run_v2_service.api[0].uri : null
+  description = "The public URL of the web app and API. Passkeys work on this host name only."
+  value       = local.public_origin
 }
 
 output "image_repository" {

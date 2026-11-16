@@ -39,6 +39,7 @@ COPY docs/diagrams/tools/package.json docs/diagrams/tools/
 COPY --from=builder /src/bindings/wasm/pkg bindings/wasm/pkg
 RUN pnpm install --frozen-lockfile --filter "@savespace/web..."
 COPY crates/core/tests/golden crates/core/tests/golden
+COPY clients/ts clients/ts
 COPY apps/web apps/web
 RUN pnpm --filter @savespace/web build
 

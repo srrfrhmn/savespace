@@ -80,8 +80,8 @@ jobs:
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-nextest
-      - name: Database tests (one new database per test)
-        run: cargo nextest run -p platform-db --locked --run-ignored only
+      - name: Database tests (one new database per test, runtime role, RLS)
+        run: cargo nextest run --workspace --locked --run-ignored only
 
   web:
     name: web (wasm, lint, typecheck, test, build)
@@ -101,6 +101,10 @@ jobs:
           cache: pnpm
       - run: pnpm wasm
       - run: pnpm install --frozen-lockfile
+      - name: Generated API client is current (design doc §11.1)
+        run: |
+          pnpm gen:client
+          git diff --exit-code -- clients/ts
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -110,6 +114,14 @@ jobs:
           size=$(gzip -9 -c bindings/wasm/pkg/savespace_core_bg.wasm | wc -c)
           echo "savespace-core WASM gzip size: ${size} bytes (budget 153600)"
           test "$size" -le 153600
+      - name: Initial JS budget (design doc §8.5)
+        run: |
+          size=0
+          for f in apps/web/dist/assets/*.js; do
+            size=$((size + $(gzip -9 -c "$f" | wc -c)))
+          done
+          echo "Initial JS gzip size: ${size} bytes (budget 184320)"
+          test "$size" -le 184320
 
   image:
     name: container image

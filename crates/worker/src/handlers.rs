@@ -26,6 +26,7 @@ impl Registry {
         handlers.insert("system.ping", |_, job| {
             Box::pin(std::future::ready(ping(&job)))
         });
+        handlers.insert(CLEANUP, |pool, _| Box::pin(cleanup(pool)));
         Self { handlers }
     }
 
@@ -41,6 +42,17 @@ impl Registry {
         };
         handler(pool.clone(), job).await
     }
+}
+
+/// The kind of the hourly cleanup job.
+pub(crate) const CLEANUP: &str = "system.cleanup";
+
+/// `system.cleanup`: deletes expired sign-in challenges, sessions, and
+/// idempotency keys.
+async fn cleanup(pool: PgPool) -> anyhow::Result<()> {
+    let deleted = domain_identity::delete_expired(&pool).await?;
+    tracing::info!(deleted, "expired rows deleted");
+    Ok(())
 }
 
 /// `system.ping`: does nothing and succeeds. Operators enqueue it to check the

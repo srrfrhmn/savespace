@@ -684,6 +684,8 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | --- | --- | --- |
 | `POST` | `/v1/link_tokens` | Create a Plaid link token. |
 | `POST` | `/v1/connections` | Exchange a public token. Create a connection. |
+| `GET` | `/v1/me` | Get the signed-in person and security settings. |
+| `POST` | `/v1/auth/login/start`, `/v1/auth/login/finish` | Passkey sign-in. Also `setup/*`, `recover`, `verify/*` (step-up), and `logout`. |
 | `GET` | `/v1/accounts` | List accounts. |
 | `GET` | `/v1/transactions` | List transactions. Filters: account, category, date range, search. |
 | `PATCH` | `/v1/transactions/{id}` | Edit category, merchant, note, hidden. |
@@ -704,14 +706,17 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 ### 12.1 Authentication
 
 - **Passkeys (WebAuthn) first.** Use `webauthn-rs`. A passkey is phishing-resistant.
-- **Fallback:** email one-time code. Codes expire in 10 minutes. Max 5 attempts.
+- **Fallback:** email one-time code. Codes expire in 10 minutes. Max 5 attempts. Phase 1 uses recovery codes instead (D12).
 - **Sessions:** opaque random tokens. The server stores only a hash. Web: `HttpOnly`, `Secure`, `SameSite=Strict` cookie. iOS: Keychain. Android: Keystore.
 - Session lifetime: 30 days idle, 90 days absolute.
 - **Step-up authentication** for: a new connection, data export, account deletion, household invites, and new passkeys.
 
+**Phase 1 (D12).** The only user is the owner. A one-time setup code (Secret Manager) registers the first passkey. After that, setup is closed. Ten single-use recovery codes replace the email fallback. A recovery code sign-in counts as a step-up check, so the owner can add a new passkey. The WebAuthn relying party ID is the Cloud Run host name, and the API redirects other host names to it. State-changing requests must send an `Origin` header that matches the app. Threat model: [`threat-model.md`](threat-model.md).
+
 ### 12.2 Authorization
 
-- Every request runs in a database transaction with `SET LOCAL app.household_id = …`.
+- Every request runs in a database transaction with `SET LOCAL app.household_id = …` (`platform_db::tenant_tx`).
+- Sign-in runs before the household is known. Narrow `SECURITY DEFINER` functions do those lookups (find a session by token hash, find a passkey by credential ID, use a recovery code). The runtime role has no other way to read across households.
 - RLS policies on every tenant table use this setting. The application role cannot bypass RLS.
 - The API layer also checks household membership. RLS is the second layer, not the only layer.
 - Integration tests try cross-tenant reads and writes on every endpoint. They MUST fail.
@@ -968,6 +973,7 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | D9 | 2026-11-15 | MVP runs on Google Cloud Run and Neon PostgreSQL 18 at $0 (Section 8.8). AWS stays the target. | Free tiers cover one person. Same practices: containers, Terraform, OIDC deploys, least-privilege roles, encrypted backups. |
 | D10 | 2026-11-15 | MVP insight text uses templates only. LLM rephrase (Section 7.5) is off. | The Claude API has no free tier. Templates are already the fallback path (D5). Turn it on per rule later. |
 | D11 | 2026-11-15 | Phase 1 supports `en-US` and USD only. | One user. Hand-written formatting in `savespace-core` until ICU4X. |
+| D12 | 2026-11-16 | Phase 1 sign-in: passkeys plus 10 single-use recovery codes. No email fallback. A one-time setup code registers the first passkey, then setup closes. | One user. An email fallback needs an email vendor and a sending domain. Recovery codes need neither. |
 
 ---
 

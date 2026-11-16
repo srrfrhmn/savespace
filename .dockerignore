@@ -8,7 +8,8 @@
 bindings/wasm/pkg
 infra
 evals
-clients
+clients/*
+!clients/ts
 apps/ios
 apps/android
 docs

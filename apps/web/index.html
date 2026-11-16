@@ -6,6 +6,9 @@
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>SaveSpace</title>
+    <!-- React Aria adds an inline <style> unless an element with this ID exists.
+         The CSP blocks inline styles, so styles.css has the same rule. -->
+    <template id="react-aria-pressable-style"></template>
   </head>
   <body>
     <div id="root"></div>

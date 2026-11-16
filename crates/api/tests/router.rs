@@ -16,7 +16,8 @@ fn state() -> api::AppState {
     config.acquire_timeout = std::time::Duration::from_millis(300);
     let db =
         platform_db::connect_lazy("postgres://nobody:nothing@127.0.0.1:1/none", &config).unwrap();
-    api::AppState { db }
+    let origin = url::Url::parse("http://localhost:8080").unwrap();
+    api::AppState::new(db, origin, None).unwrap()
 }
 
 async fn get(router: Router, uri: &str) -> axum::http::Response<Body> {

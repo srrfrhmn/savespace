@@ -8,7 +8,14 @@ all-features = true
 # Fail on any RustSec advisory that affects a dependency.
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+    # rsa < 0.10.0 (Marvin Attack): timing leaks of an RSA *private* key during
+    # decryption or signing. SaveSpace only verifies passkey signatures with
+    # public keys (webauthn-rs, RS256) and holds no RSA private key.
+    # webauthn-rs 0.6.2 (crypto-glue) cannot use rsa 0.10.0 yet. Remove this
+    # entry when it can.
+    { id = "RUSTSEC-2023-0071", reason = "public-key verification only; no RSA private key" },
+]
 
 [licenses]
 version = 2

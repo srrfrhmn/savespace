@@ -1,0 +1,767 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SaveSpace API",
+    "description": "Design doc §11. Paths are relative to /v1.",
+    "license": {
+      "name": "UNLICENSED",
+      "identifier": "UNLICENSED"
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "/v1"
+    }
+  ],
+  "paths": {
+    "/auth/login/finish": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Finishes passkey sign-in. Sets the session cookie.",
+        "operationId": "login_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssertionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login/start": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Starts passkey sign-in.",
+        "operationId": "login_start",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Signs out. Works without a valid session, so a stale cookie is removed.",
+        "operationId": "logout",
+        "responses": {
+          "204": {}
+        }
+      }
+    },
+    "/auth/recover": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Signs in with a recovery code. The code works once. The new session can\nadd a passkey right away.",
+        "operationId": "recover",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/setup": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reports whether owner setup can start.",
+        "operationId": "setup_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/setup/finish": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Finishes owner setup. Signs the owner in and returns recovery codes.",
+        "operationId": "setup_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupFinishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/setup/start": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Starts owner setup. Checks the setup code and returns passkey options.",
+        "operationId": "setup_start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify/finish": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Finishes a step-up check.",
+        "operationId": "verify_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssertionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUp"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify/start": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Starts a passkey check for step-up actions.",
+        "operationId": "verify_start",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Gets the signed-in person.",
+        "operationId": "get_me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/passkeys/finish": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Finishes adding a passkey. Needs step-up.",
+        "operationId": "add_passkey_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPasskeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyCreated"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/passkeys/start": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Starts adding a passkey. Needs step-up.",
+        "operationId": "add_passkey_start",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/passkeys/{id}": {
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Deletes a passkey. The last passkey cannot be deleted. Needs step-up.",
+        "operationId": "delete_passkey",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The passkey ID (`pk_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/recovery_codes": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Replaces the recovery codes with a new set. Needs step-up.",
+        "operationId": "regenerate_recovery_codes",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddPasskeyRequest": {
+        "type": "object",
+        "description": "Finish adding a passkey.",
+        "required": [
+          "challenge_id",
+          "credential",
+          "name"
+        ],
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "description": "The ID from the start response."
+          },
+          "credential": {
+            "type": "object",
+            "description": "The result of `navigator.credentials.create()`, in JSON form."
+          },
+          "name": {
+            "type": "string",
+            "description": "A name for this passkey. 1 to 100 characters."
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "An API error.",
+        "required": [
+          "type",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable, machine-readable code, for example `step_up_required`."
+          },
+          "message": {
+            "type": "string",
+            "description": "A sentence for a developer. The web app shows its own text."
+          },
+          "param": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The request field that caused the error, if any."
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The request ID, the same as the `Request-Id` header."
+          },
+          "type": {
+            "$ref": "#/components/schemas/ErrorType",
+            "description": "The error class."
+          }
+        }
+      },
+      "AssertionRequest": {
+        "type": "object",
+        "description": "Finish a passkey check.",
+        "required": [
+          "challenge_id",
+          "credential"
+        ],
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "description": "The ID from the start response."
+          },
+          "credential": {
+            "type": "object",
+            "description": "The result of `navigator.credentials.get()`, in JSON form."
+          }
+        }
+      },
+      "Challenge": {
+        "type": "object",
+        "description": "A WebAuthn challenge.",
+        "required": [
+          "challenge_id",
+          "options"
+        ],
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "description": "Send this ID back with the authenticator response. Valid for 5 minutes."
+          },
+          "options": {
+            "type": "object",
+            "description": "Options for `navigator.credentials.create()` or `.get()`, in the\nWebAuthn JSON form (binary fields are base64url)."
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "description": "The JSON body of every error response.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiError",
+            "description": "The error."
+          }
+        }
+      },
+      "ErrorType": {
+        "type": "string",
+        "description": "The error `type` values from §11.4.",
+        "enum": [
+          "invalid_request_error",
+          "authentication_error",
+          "permission_error",
+          "not_found_error",
+          "rate_limit_error",
+          "api_error"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "description": "The signed-in person.",
+        "required": [
+          "id",
+          "household_id",
+          "display_name",
+          "time_zone",
+          "calm_mode",
+          "step_up_until",
+          "passkeys",
+          "recovery_codes_left"
+        ],
+        "properties": {
+          "calm_mode": {
+            "type": "boolean",
+            "description": "Calm mode: hide exact balances until the person taps."
+          },
+          "display_name": {
+            "type": "string",
+            "description": "The display name."
+          },
+          "household_id": {
+            "type": "string",
+            "description": "The household ID (`hh_…`)."
+          },
+          "id": {
+            "type": "string",
+            "description": "The user ID (`usr_…`)."
+          },
+          "passkeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Passkey"
+            },
+            "description": "Registered passkeys."
+          },
+          "recovery_codes_left": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unused recovery codes."
+          },
+          "step_up_until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Step-up actions are allowed until this time (RFC 3339). A time in the\npast means the person must confirm with a passkey first."
+          },
+          "time_zone": {
+            "type": "string",
+            "description": "The IANA time zone, for example `America/New_York`."
+          }
+        }
+      },
+      "Passkey": {
+        "type": "object",
+        "description": "A registered passkey.",
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was added (RFC 3339)."
+          },
+          "id": {
+            "type": "string",
+            "description": "The passkey ID (`pk_…`)."
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The last use (RFC 3339), if any."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name the person gave it."
+          }
+        }
+      },
+      "PasskeyCreated": {
+        "type": "object",
+        "description": "A new passkey.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The passkey ID (`pk_…`)."
+          }
+        }
+      },
+      "RecoverRequest": {
+        "type": "object",
+        "description": "Sign in with a recovery code.",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A recovery code. Case, spaces, and dashes do not matter."
+          }
+        }
+      },
+      "RecoveryCodes": {
+        "type": "object",
+        "description": "Recovery codes. Shown once. Each code works one time.",
+        "required": [
+          "recovery_codes"
+        ],
+        "properties": {
+          "recovery_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ten codes in the form `XXXX-XXXX-XXXX`."
+          }
+        }
+      },
+      "SetupFinishRequest": {
+        "type": "object",
+        "description": "Finish owner setup.",
+        "required": [
+          "challenge_id",
+          "credential",
+          "passkey_name"
+        ],
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "description": "The ID from the start response."
+          },
+          "credential": {
+            "type": "object",
+            "description": "The result of `navigator.credentials.create()`, in JSON form."
+          },
+          "passkey_name": {
+            "type": "string",
+            "description": "A name for this passkey, for example \"Laptop\". 1 to 100 characters."
+          }
+        }
+      },
+      "SetupStartRequest": {
+        "type": "object",
+        "description": "Start owner setup.",
+        "required": [
+          "setup_code",
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "description": "The name to show in the app. 1 to 100 characters."
+          },
+          "setup_code": {
+            "type": "string",
+            "description": "The one-time setup code from Secret Manager (`owner-setup-code`)."
+          }
+        }
+      },
+      "SetupStatus": {
+        "type": "object",
+        "description": "Whether owner setup can start.",
+        "required": [
+          "setup_open"
+        ],
+        "properties": {
+          "setup_open": {
+            "type": "boolean",
+            "description": "True if the server has a setup code and no owner exists yet."
+          }
+        }
+      },
+      "StepUp": {
+        "type": "object",
+        "description": "The result of a step-up check.",
+        "required": [
+          "step_up_until"
+        ],
+        "properties": {
+          "step_up_until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Step-up actions are allowed until this time (RFC 3339)."
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Owner setup, passkey sign-in, and step-up checks."
+    },
+    {
+      "name": "me",
+      "description": "The signed-in person."
+    }
+  ]
+}

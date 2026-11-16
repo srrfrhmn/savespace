@@ -4,16 +4,31 @@ use anyhow::Context;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // `api openapi <path>` writes the OpenAPI document and exits (pnpm gen:api).
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("openapi") {
+        let path = args.next().context("usage: api openapi <path>")?;
+        let json = api::openapi().to_pretty_json().context("serialize")? + "\n";
+        std::fs::write(&path, json).with_context(|| format!("write {path}"))?;
+        return Ok(());
+    }
+
     platform_observability::init("api");
     let config = api::Config::from_env()?;
     let db = platform_db::connect_lazy(&config.database_url, &platform_db::PoolConfig::new("api"))
         .context("parse DATABASE_URL")?;
-    let router = api::build_router(api::AppState { db: db.clone() }, config.web_dir.as_deref());
+    let state = api::AppState::new(db.clone(), config.public_origin.clone(), config.setup_code)?;
+    let router = api::build_router(state, config.web_dir.as_deref());
 
     let listener = tokio::net::TcpListener::bind(config.addr)
         .await
         .with_context(|| format!("bind {}", config.addr))?;
-    tracing::info!(addr = %config.addr, web = config.web_dir.is_some(), "api listening");
+    tracing::info!(
+        addr = %config.addr,
+        origin = %config.public_origin,
+        web = config.web_dir.is_some(),
+        "api listening"
+    );
 
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())

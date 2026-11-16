@@ -2,12 +2,18 @@
 //!
 //! Design doc §8.6 and §9. Phase 1 adds RLS session setup and the outbox relay.
 
+pub mod idempotency;
 pub mod jobs;
 
 use std::time::Duration;
 
+pub use sqlx::Error as DbError;
 pub use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use uuid::Uuid;
+
+/// A database transaction that is limited to one household.
+pub type TenantTx = sqlx::Transaction<'static, sqlx::Postgres>;
 
 /// The environment variable that holds the connection URL.
 pub const DATABASE_URL_ENV: &str = "DATABASE_URL";
@@ -77,4 +83,22 @@ pub async fn ping(pool: &PgPool) -> Result<(), sqlx::Error> {
 /// Returns an error if a migration fails or an applied migration was changed.
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
     MIGRATOR.run(pool).await
+}
+
+/// Starts a transaction for one household.
+///
+/// Row-level security limits every tenant table to `household_id` for the
+/// whole transaction (design doc §12.2). The setting ends with the
+/// transaction, so a pooled connection never keeps it.
+///
+/// # Errors
+///
+/// Returns an error if the pool cannot get a connection or the setting fails.
+pub async fn tenant_tx(pool: &PgPool, household_id: Uuid) -> Result<TenantTx, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT set_config('app.household_id', $1, true)")
+        .bind(household_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    Ok(tx)
 }
