@@ -320,6 +320,8 @@ pub enum Fact {
 
 ### 7.5 LLM rephrase
 
+The MVP does not use this step (D10). Insight text comes from templates only.
+
 The LLM makes the text feel natural and varied. The LLM is not a source of truth.
 
 **Input.** The worker sends only:
@@ -483,6 +485,8 @@ Phase 1 uses PostgreSQL for async work. This keeps the number of moving parts lo
 
 ### 8.7 Infrastructure
 
+This is the target infrastructure for when SaveSpace has users. Until then, the MVP uses the setup in Section 8.8.
+
 | Area | Choice |
 | --- | --- |
 | Cloud | AWS, region `us-east-1`. Disaster recovery region `us-west-2`. |
@@ -493,6 +497,33 @@ Phase 1 uses PostgreSQL for async work. This keeps the number of moving parts lo
 | Secrets | AWS Secrets Manager. No secrets in environment files or images. |
 | Images | Distroless base images. Signed with Sigstore `cosign`. SBOM per build. |
 | Environments | `dev`, `staging`, `prod`. Separate AWS accounts. Production data never goes to non-production. |
+
+### 8.8 MVP deployment
+
+In Phase 1 the only user is the owner (D8). The MVP uses production practices, but it runs on free tiers at $0 per month (D9). Runbook: `infra/README.md`.
+
+![MVP deployment](diagrams/08-mvp-deployment.svg)
+
+Source: [`08-mvp-deployment.excalidraw`](diagrams/08-mvp-deployment.excalidraw)
+
+| Area | MVP choice | Target (Section 8.7) |
+| --- | --- | --- |
+| Cloud | Google Cloud, region `us-east1`. One environment (`prod`). Local development uses Docker Compose. | AWS, `us-east-1`. `dev`, `staging`, `prod`. |
+| Compute | One container image. Cloud Run service `savespace-api` serves the API and the web app (same origin). Scales to zero, max 1 instance. | ECS on Fargate. |
+| Worker | Cloud Run job `savespace-worker` runs `worker drain` every hour (Cloud Scheduler). Each run empties the queue, then exits. | Long-running `worker run` service. |
+| Migrations | Cloud Run job `savespace-migrate`, run by each deploy before the new code. | Same pattern. |
+| Database | Neon PostgreSQL 18, free plan, scales to zero. Daily `pg_dump` encrypted with `age` to Cloud Storage (35 days). | RDS Multi-AZ, PITR 35 days. |
+| Database roles | `savespace_owner` owns the schema (migrations, backups). `savespace_app` (member of `savespace_runtime`) has DML only, so RLS applies to it. | Same. |
+| Secrets | Secret Manager. The Plaid token key-encryption key is a random 256-bit secret (`token-kek`), not a KMS key. | KMS envelope encryption (Section 12.3). |
+| Edge | Cloud Run HTTPS on the `run.app` domain. Security headers (CSP, HSTS) from the API. | CloudFront, ALB, WAF, own domain. |
+| CI/CD | GitHub Actions. OIDC to Workload Identity Federation (no keys). Deploy on green `main`. | Same, plus staging and canary. |
+| Monitoring | Cloud Logging (structured JSON). Uptime check every 3 hours (GitHub Actions). Budget alert at the first cent. | OpenTelemetry, SLO alerts, on-call. |
+
+**Cost limits.** Max 1 instance, CPU only during requests, job timeouts, and an image cleanup policy. A budget alert does not stop spend.
+
+**Free-tier budget.** The hourly worker wakes the database for about 5 minutes each run (about 15 of the 100 free compute-hours each month). The worker schedule and the uptime interval are the main controls.
+
+**Trigger to change.** Move to the target infrastructure (Section 8.7) before a second person uses SaveSpace with real bank data, or when a free-tier limit is reached for 2 months.
 
 ---
 
@@ -840,6 +871,7 @@ Target: CI p50 < 10 minutes. Use `sccache` and `cargo-chef` layer caches.
 
 - `CODEOWNERS` per crate and per app.
 - Changes to `savespace-core`, `platform-db` migrations, auth, and encryption need two approvals, one from the owner team.
+- While the team has one engineer, the rule is: self-review of the full diff, green CI, and for `infra/` a reviewed `terraform plan`. The two-approval rule starts with the second engineer.
 
 ---
 
@@ -888,8 +920,8 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | Phase | Scope | Exit criteria |
 | --- | --- | --- |
 | **0. Foundations** | Repo, CI, infra, auth, `savespace-core` v0, Plaid sandbox sync, data model, observability. | End-to-end sandbox sync. CI green. Threat model done. |
-| **1. Web MVP** | Section 6.1 features. Private beta (≤ 500 people). | SLOs met for 4 weeks. Correctness ≥ 99.5%. Pen test findings fixed. |
-| **2. iOS** | Swift app. Push. Goals. If-then plans. Public launch. | Crash-free sessions ≥ 99.8%. SOC 2 Type I. |
+| **1. Web MVP** | Section 6.1 features. One user: the owner (D8). Real accounts through the Plaid Trial plan. Runs at $0 (Section 8.8). | The owner uses it for 4 weeks on real accounts. Correctness ≥ 99.5% (owner review). A backup restore test passes. |
+| **2. iOS** | Swift app. Push. Goals. If-then plans. Move to the target infrastructure (Section 8.7). Private beta (≤ 500 people), then public launch. | SLOs met for 4 weeks. Pen test findings fixed. Crash-free sessions ≥ 99.8%. SOC 2 Type I. |
 | **3. Android + households** | Android app. Shared households. MX failover. | SOC 2 Type II. Household RLS tests pass. |
 | **4. Forecast + BaaS evaluation** | Cash-flow forecast. Evaluate a partner bank for own accounts. | Go/no-go decision document for BaaS. |
 
@@ -914,7 +946,7 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 ### 17.2 Open questions
 
 1. Pricing model (subscription only, or free tier). This affects the notification and retention strategy.
-2. Which locales and currencies does Phase 1 support? Proposal: `en-US`, USD only.
+2. ~~Which locales and currencies does Phase 1 support?~~ Resolved: `en-US`, USD only (D11).
 3. Do we offer a direct session with a financial therapist (partner network)? This needs legal review.
 4. Is the money scripts onboarding helpful, or does it add load? Test in private beta.
 5. Do we allow the person to see the LLM text and the template text side by side? Proposal: no, but show "Why am I seeing this?" facts.
@@ -932,6 +964,10 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | D5 | 2026-11-04 | Hybrid insight text: rules compute, LLM rephrases, validator checks. | Natural text without risk to numbers. |
 | D6 | 2026-11-04 | PostgreSQL job queue and outbox. No Kafka in Phase 1. | Fewer moving parts. Clear trigger to change (Section 8.6). |
 | D7 | 2026-11-04 | Modular monolith. | Small team. Crate boundaries allow a later split. |
+| D8 | 2026-11-15 | Phase 1 has one user: the owner. The private beta moves to Phase 2. | Prove the product on real data first. Lower security and compliance load before other people's data. |
+| D9 | 2026-11-15 | MVP runs on Google Cloud Run and Neon PostgreSQL 18 at $0 (Section 8.8). AWS stays the target. | Free tiers cover one person. Same practices: containers, Terraform, OIDC deploys, least-privilege roles, encrypted backups. |
+| D10 | 2026-11-15 | MVP insight text uses templates only. LLM rephrase (Section 7.5) is off. | The Claude API has no free tier. Templates are already the fallback path (D5). Turn it on per rule later. |
+| D11 | 2026-11-15 | Phase 1 supports `en-US` and USD only. | One user. Hand-written formatting in `savespace-core` until ICU4X. |
 
 ---
 

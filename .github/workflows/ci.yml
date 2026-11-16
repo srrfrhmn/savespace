@@ -74,6 +74,14 @@ jobs:
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c '\dt app.*'
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO app.jobs (kind, dedupe_key) VALUES ('ci.smoke', 'k1') RETURNING id;"
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-nextest
+      - name: Database tests (one new database per test)
+        run: cargo nextest run -p platform-db --locked --run-ignored only
 
   web:
     name: web (wasm, lint, typecheck, test, build)
@@ -102,3 +110,34 @@ jobs:
           size=$(gzip -9 -c bindings/wasm/pkg/savespace_core_bg.wasm | wc -c)
           echo "savespace-core WASM gzip size: ${size} bytes (budget 153600)"
           test "$size" -le 153600
+
+  image:
+    name: container image
+    # main builds and pushes the image in the deploy workflow.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build (no push)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          provenance: false
+          cache-from: type=gha
+
+  infra:
+    name: terraform (fmt, validate)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false -lockfile=readonly
+      - run: terraform validate

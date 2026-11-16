@@ -6,22 +6,26 @@ use anyhow::Context;
 async fn main() -> anyhow::Result<()> {
     platform_observability::init("api");
     let config = api::Config::from_env()?;
+    let db = platform_db::connect_lazy(&config.database_url, &platform_db::PoolConfig::new("api"))
+        .context("parse DATABASE_URL")?;
+    let router = api::build_router(api::AppState { db: db.clone() }, config.web_dir.as_deref());
 
     let listener = tokio::net::TcpListener::bind(config.addr)
         .await
         .with_context(|| format!("bind {}", config.addr))?;
-    tracing::info!(addr = %config.addr, "api listening");
+    tracing::info!(addr = %config.addr, web = config.web_dir.is_some(), "api listening");
 
-    axum::serve(listener, api::build_router())
+    axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("serve")?;
 
+    db.close().await;
     tracing::info!("api stopped");
     Ok(())
 }
 
-/// Resolves on Ctrl-C, or on SIGTERM on Unix (ECS sends SIGTERM).
+/// Resolves on Ctrl-C, or on SIGTERM on Unix (Cloud Run sends SIGTERM).
 async fn shutdown_signal() {
     let ctrl_c = async {
         if let Err(e) = tokio::signal::ctrl_c().await {

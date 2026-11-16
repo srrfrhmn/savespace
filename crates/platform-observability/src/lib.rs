@@ -7,7 +7,7 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 
-/// The environment variable that selects the log format: `json` or `pretty`.
+/// The environment variable that selects the log format: `gcp`, `json`, or `pretty`.
 pub const LOG_FORMAT_ENV: &str = "SAVESPACE_LOG_FORMAT";
 
 /// The default filter if `RUST_LOG` is not set.
@@ -16,22 +16,26 @@ const DEFAULT_FILTER: &str = "info,tower_http=info";
 /// Installs the global `tracing` subscriber for `service`.
 ///
 /// - `RUST_LOG` sets the filter. The default is `info`.
-/// - `SAVESPACE_LOG_FORMAT=json` writes one JSON object per line (production).
-///   Any other value writes human-readable output (development).
+/// - `SAVESPACE_LOG_FORMAT=gcp` writes one JSON object per line in the Google
+///   Cloud Logging format (`severity`, `message`). Production uses this format.
+/// - `SAVESPACE_LOG_FORMAT=json` writes one JSON object per line.
+/// - Any other value writes human-readable output (development).
 ///
 /// Call this function once, at the start of `main`. A second call has no effect.
 pub fn init(service: &'static str) {
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_FILTER));
-    let json = std::env::var(LOG_FORMAT_ENV).is_ok_and(|v| v.eq_ignore_ascii_case("json"));
+    let format = std::env::var(LOG_FORMAT_ENV)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
 
     let registry = tracing_subscriber::registry().with(filter);
-    let result = if json {
-        registry
+    let result = match format.as_str() {
+        "gcp" => registry.with(tracing_stackdriver::layer()).try_init(),
+        "json" => registry
             .with(fmt::layer().json().with_current_span(true))
-            .try_init()
-    } else {
-        registry.with(fmt::layer()).try_init()
+            .try_init(),
+        _ => registry.with(fmt::layer()).try_init(),
     };
     if result.is_ok() {
         tracing::info!(service, "observability initialized");

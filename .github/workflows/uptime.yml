@@ -1,0 +1,27 @@
+# Uptime check. A failed scheduled run sends the repository owner an email.
+#
+# Every 3 hours: each check starts a Cloud Run instance and wakes the database,
+# so a shorter interval uses more of the free tier.
+name: uptime
+
+on:
+  schedule:
+    - cron: "41 */3 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    if: vars.APP_URL != ''
+    runs-on: ubuntu-24.04
+    env:
+      URL: ${{ vars.APP_URL }}
+    steps:
+      - name: Check /health and /ready
+        run: |
+          for path in /health /ready; do
+            curl --fail --silent --show-error --output /dev/null --max-time 20 \
+              --retry 3 --retry-all-errors --retry-delay 10 "${URL}${path}"
+            echo "ok ${path}"
+          done

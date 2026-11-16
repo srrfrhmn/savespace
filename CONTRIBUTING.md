@@ -38,8 +38,11 @@ Run `pnpm wasm` again after you change `crates/core` or `bindings/wasm`.
 | Rust format | `cargo fmt --all` |
 | Dependency rule (§8.3) | `cargo xtask check-deps` |
 | Licenses and advisories | `cargo deny check` |
-| Run the API | `cargo run -p api` (listens on `127.0.0.1:8080`, `GET /healthz`) |
-| Run the worker | `cargo run -p worker` |
+| Run the API | `cargo run -p api` (listens on `127.0.0.1:8080`, `GET /health`, `GET /ready`). Set `SAVESPACE_WEB_DIR=apps/web/dist` to serve the web app too. |
+| Run the worker | `cargo run -p worker` (`run`, `drain`, or `migrate`) |
+| Database tests | `cargo nextest run -p platform-db --run-ignored only` (needs `DATABASE_URL` and Docker Postgres) |
+| Container image | `docker build -t savespace .` |
+| Terraform check | `terraform -chdir=infra/terraform fmt -check` and `validate` |
 | Web dev server | `pnpm --filter @savespace/web dev` |
 | Web lint and format | `pnpm lint` / `pnpm format` |
 | Web typecheck, test, build | `pnpm typecheck` / `pnpm test` / `pnpm build` |
@@ -50,13 +53,18 @@ Run `pnpm wasm` again after you change `crates/core` or `bindings/wasm`.
 
 CI runs all of these on every pull request (`.github/workflows/ci.yml`). CI and `compose.yaml` use the same `postgres:18` image.
 
+## Deploy
+
+A push to `main` that passes CI deploys to production (`.github/workflows/deploy.yml`). See [infra/README.md](infra/README.md) for setup, rollback, secrets, and backups.
+
 ## Rules
 
 - **Money.** Use `savespace_core::Money`. Never use floating-point numbers for money. Add property tests for new money math.
 - **One source of truth.** Put calculations that a client shows in `crates/core`. Do not repeat them in TypeScript, Swift, or Kotlin.
 - **Golden files.** If you change formatting, update `crates/core/tests/golden/format.json`. The Rust test and the WASM test both read it.
 - **Crate layers.** `api`/`worker` → `domain-*` → `platform-*` → `savespace-core`. A domain crate does not depend on another domain crate. `cargo xtask check-deps` enforces this.
-- **Migrations.** Forward-only. Expand and contract (§9.3).
+- **Migrations.** Forward-only. Expand and contract (§9.3). Each deploy runs migrations before the new code, so the old code must work with the new schema.
+- **Secrets.** Never commit a secret. The repository is public. Local secrets go in `.env`. Production secrets go in Secret Manager through `infra/scripts/set-secret.sh`.
 - **Design review.** Write an RFC (`docs/rfcs/0000-template.md`) for a new table, external dependency, insight rule, or data flow (§14.4).
 - **Behavioral review.** Changes to insights, notifications, or copy follow design doc §5 and Appendix B. The pull request template has a checklist.
 
