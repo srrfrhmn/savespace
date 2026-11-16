@@ -3,9 +3,10 @@
 // (crates/core/tests/golden.rs).
 
 import { readFileSync } from "node:fs";
-import initCore, { formatMoney } from "@savespace/savespace-core-wasm";
+import initCore, { formatMoney, parseMoney } from "@savespace/savespace-core-wasm";
 import { beforeAll, describe, expect, it } from "vitest";
 import golden from "../../../crates/core/tests/golden/format.json" with { type: "json" };
+import parseGolden from "../../../crates/core/tests/golden/parse_input.json" with { type: "json" };
 
 beforeAll(async () => {
   const wasmUrl = new URL("../../../bindings/wasm/pkg/savespace_core_bg.wasm", import.meta.url);
@@ -26,4 +27,16 @@ describe("formatMoney (WASM) matches the golden file", () => {
   it("rejects an unsupported currency", () => {
     expect(() => formatMoney(1n, "XYZ")).toThrow(/unsupported currency/);
   });
+});
+
+describe("parseMoney (WASM) matches the golden file", () => {
+  for (const c of parseGolden.cases) {
+    it(`${JSON.stringify(c.text)} ${c.currency} -> ${c.expected}`, () => {
+      if (c.expected === null) {
+        expect(() => parseMoney(c.text, c.currency)).toThrow();
+      } else {
+        expect(parseMoney(c.text, c.currency)).toBe(BigInt(c.expected));
+      }
+    });
+  }
 });

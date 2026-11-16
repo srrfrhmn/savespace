@@ -177,6 +177,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists categories. */
+        get: operations["list_categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/connections": {
         parameters: {
             query?: never;
@@ -334,6 +351,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists categorization rules. */
+        get: operations["list_rules"];
+        put?: never;
+        /**
+         * Creates a rule. It applies to past and future transactions, and replaces
+         *     a rule with the same match. The person's own edits still win.
+         */
+        post: operations["create_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletes a rule. Its transactions get the next matching rule or the
+         *     automatic category.
+         */
+        delete: operations["delete_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions": {
         parameters: {
             query?: never;
@@ -341,9 +399,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lists transactions, newest first. M3 adds filters and search. */
+        /** Lists transactions, newest first, with filters and search. */
         get: operations["list_transactions"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gets one transaction. */
+        get: operations["get_transaction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edits the category, merchant name, note, or hidden state. */
+        patch: operations["update_transaction"];
+        trace?: never;
+    };
+    "/transactions/{id}/splits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces the split of a posted transaction. */
+        put: operations["set_splits"];
         post?: never;
         delete?: never;
         options?: never;
@@ -448,6 +541,22 @@ export interface components {
             /** @description The result of `navigator.credentials.get()`, in JSON form. */
             credential: Record<string, unknown>;
         };
+        /** @description A category. */
+        Category: {
+            /** @description The category ID (`cat_…`). */
+            id: string;
+            /** @description `fixed`, `flex`, `non_monthly`, `income`, or `transfer`. */
+            kind: string;
+            /** @description The name. */
+            name: string;
+            /** @description Health, giving, and similar. SaveSpace is more careful with these. */
+            sensitive: boolean;
+        };
+        /** @description The categories, in display order. */
+        CategoryList: {
+            /** @description The categories. */
+            data: components["schemas"]["Category"][];
+        };
         /** @description A WebAuthn challenge. */
         Challenge: {
             /** @description Send this ID back with the authenticator response. Valid for 5 minutes. */
@@ -489,6 +598,13 @@ export interface components {
             institution?: components["schemas"]["Institution"] | null;
             /** @description The `public_token` from Plaid Link `onSuccess`. */
             public_token: string;
+        };
+        /** @description Create a rule. */
+        CreateRuleRequest: {
+            /** @description The category to set (`cat_…`). */
+            category_id: string;
+            /** @description What it matches. */
+            match: components["schemas"]["RuleMatchBody"];
         };
         /** @description The JSON body of every error response. */
         ErrorBody: {
@@ -577,6 +693,45 @@ export interface components {
             /** @description Ten codes in the form `XXXX-XXXX-XXXX`. */
             recovery_codes: string[];
         };
+        /** @description A categorization rule. */
+        Rule: {
+            /** @description The category it sets (`cat_…`). */
+            category_id: string;
+            /**
+             * Format: date-time
+             * @description When it was made (RFC 3339).
+             */
+            created_at: string;
+            /** @description The rule ID (`rule_…`). */
+            id: string;
+            /** @description What it matches. */
+            match: components["schemas"]["RuleMatchBody"];
+            /** @description The merchant name, for a merchant rule. */
+            merchant_name?: string | null;
+            /**
+             * Format: int64
+             * @description How many transactions it categorizes now, without those where the
+             *     person set the category.
+             */
+            transactions: number;
+        };
+        /** @description The rules, highest priority first. */
+        RuleList: {
+            /** @description The rules. */
+            data: components["schemas"]["Rule"][];
+        };
+        /**
+         * @description What a rule matches. Set exactly one of `merchant_id` and
+         *     `name_contains`.
+         */
+        RuleMatchBody: {
+            /** @description `in` (money in) or `out` (money out). Absent means both. */
+            direction?: string | null;
+            /** @description A merchant ID (`mer_…`). */
+            merchant_id?: string | null;
+            /** @description Text in the description or merchant name, 2 to 100 characters. */
+            name_contains?: string | null;
+        };
         /** @description Finish owner setup. */
         SetupFinishRequest: {
             /** @description The ID from the start response. */
@@ -598,6 +753,33 @@ export interface components {
             /** @description True if the server has a setup code and no owner exists yet. */
             setup_open: boolean;
         };
+        /** @description One part of a split. */
+        Split: {
+            /**
+             * Format: int64
+             * @description Same sign as the transaction.
+             */
+            amount_minor: number;
+            /** @description The category ID (`cat_…`). */
+            category_id: string;
+            /** @description The split ID (`spl_…`). */
+            id: string;
+        };
+        /** @description One new split part. */
+        SplitInput: {
+            /**
+             * Format: int64
+             * @description Same sign as the transaction, not zero.
+             */
+            amount_minor: number;
+            /** @description The category ID (`cat_…`). */
+            category_id: string;
+        };
+        /** @description The split parts. They must add up to the transaction amount. */
+        SplitsRequest: {
+            /** @description 2 to 10 parts, or none to remove the split. */
+            splits: components["schemas"]["SplitInput"][];
+        };
         /** @description The result of a step-up check. */
         StepUp: {
             /**
@@ -606,7 +788,7 @@ export interface components {
              */
             step_up_until: string;
         };
-        /** @description A transaction. */
+        /** @description A transaction with its category and the person's edits. */
         Transaction: {
             /** @description The account ID (`acct_…`). */
             account_id: string;
@@ -615,8 +797,10 @@ export interface components {
              * @description The amount in minor units. Negative is money out.
              */
             amount_minor: number;
-            /** @description The provider's broad category. */
-            category_primary?: string | null;
+            /** @description The category ID (`cat_…`). */
+            category_id?: string | null;
+            /** @description Where the category came from: `person`, `rule`, or `provider`. */
+            category_source?: string | null;
             /** @description ISO 4217 code. */
             currency: string;
             /**
@@ -624,14 +808,22 @@ export interface components {
              * @description The bank date (`YYYY-MM-DD`).
              */
             date: string;
+            /** @description Hidden from lists, budgets, and insights. */
+            hidden: boolean;
             /** @description The transaction ID (`txn_…`). */
             id: string;
-            /** @description The merchant, if known. */
+            /** @description The merchant ID (`mer_…`), if SaveSpace found one. */
+            merchant_id?: string | null;
+            /** @description The merchant name to show. */
             merchant_name?: string | null;
-            /** @description The description. */
+            /** @description The bank description. */
             name: string;
+            /** @description The person's note. */
+            note?: string | null;
             /** @description True while pending. */
             pending: boolean;
+            /** @description The parts, if split. Empty if not. */
+            splits: components["schemas"]["Split"][];
         };
         /** @description A page of transactions (§11.5). */
         TransactionList: {
@@ -639,6 +831,20 @@ export interface components {
             data: components["schemas"]["Transaction"][];
             /** @description True if more transactions follow. Pass the last ID as `starting_after`. */
             has_more: boolean;
+        };
+        /**
+         * @description The person's edits. A field that is not in the body does not change.
+         *     `null` clears it.
+         */
+        UpdateTransactionRequest: {
+            /** @description The category ID (`cat_…`). `null` gives the automatic category back. */
+            category_id?: string | null;
+            /** @description Hide from lists, budgets, and insights. */
+            hidden?: boolean | null;
+            /** @description The merchant name to show, up to 100 characters. */
+            merchant_name?: string | null;
+            /** @description A note, up to 500 characters. */
+            note?: string | null;
         };
     };
     responses: never;
@@ -897,6 +1103,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Challenge"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryList"];
                 };
             };
             401: {
@@ -1210,6 +1443,92 @@ export interface operations {
             };
         };
     };
+    list_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRuleRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rule"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The rule ID (`rule_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_transactions: {
         parameters: {
             query?: {
@@ -1217,6 +1536,18 @@ export interface operations {
                 limit?: number;
                 /** @description The last transaction ID (`txn_…`) of the previous page. */
                 starting_after?: string;
+                /** @description One account (`acct_…`). */
+                account_id?: string;
+                /** @description A category (`cat_…`), or `none` for transactions without a category. */
+                category?: string;
+                /** @description On or after this date (`YYYY-MM-DD`). */
+                from?: string;
+                /** @description On or before this date (`YYYY-MM-DD`). */
+                to?: string;
+                /** @description Text in the description, merchant, or note. */
+                q?: string;
+                /** @description Also list hidden transactions. The default is false. */
+                include_hidden?: boolean;
             };
             header?: never;
             path?: never;
@@ -1230,6 +1561,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransactionList"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_transaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The transaction ID (`txn_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_transaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The transaction ID (`txn_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTransactionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_splits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The transaction ID (`txn_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SplitsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
                 };
             };
             "4XX": {

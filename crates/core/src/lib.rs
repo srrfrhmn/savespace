@@ -21,7 +21,7 @@ pub mod stats;
 pub use currency::{Currency, ParseCurrencyError};
 pub use format::{Locale, format_money};
 pub use money::{AllocationError, Money, MoneyError};
-pub use parse::{ParseAmountError, parse_decimal};
+pub use parse::{ParseAmountError, parse_decimal, parse_money_input};
 pub use ratio::BasisPoints;
 
 /// The version of this crate. Clients show it in diagnostics.

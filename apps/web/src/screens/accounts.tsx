@@ -1,4 +1,3 @@
-import { formatMoney } from "@savespace/savespace-core-wasm";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -13,22 +12,10 @@ import {
   removeConnection,
   repairConnection,
 } from "../connections/data";
+import { bankDate, money } from "../format";
 import { Button, describeError, Notice, Page } from "../ui";
 
-/** Money through savespace-core (WASM), the one source of formatting (§8.4). */
-export function money(minor: number | null | undefined, currency: string): string {
-  if (minor === null || minor === undefined) {
-    return "Not available";
-  }
-  try {
-    return formatMoney(BigInt(minor), currency);
-  } catch {
-    return "Not available";
-  }
-}
-
 const relative = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
-const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
 function ago(value: string | null | undefined): string {
   if (!value) {
@@ -216,7 +203,7 @@ export function Accounts() {
                 <span>
                   <strong>{t.merchant_name ?? t.name}</strong>
                   <span className="meta">
-                    {dateFormat.format(new Date(`${t.date}T12:00:00`))}
+                    {bankDate(t.date)}
                     {t.pending ? ". Pending" : ""}
                   </span>
                 </span>
@@ -228,6 +215,7 @@ export function Accounts() {
       ) : null}
 
       <nav className="links">
+        <Link to="/transactions">All transactions</Link>
         <Link to="/">Back to home</Link>
       </nav>
     </Page>

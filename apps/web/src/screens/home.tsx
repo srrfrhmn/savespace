@@ -37,6 +37,7 @@ export function Home() {
       </section>
       <nav className="links" aria-label="Main">
         <Link to="/accounts">Accounts</Link>
+        <Link to="/transactions">Transactions</Link>
         <Link to="/settings/security">Security</Link>
         <Button variant="quiet" onPress={doSignOut}>
           Sign out

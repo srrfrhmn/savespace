@@ -3,7 +3,8 @@
 //! Aggregators send amounts as decimal text or JSON numbers ("12.34"). This
 //! module turns the text into minor units without floating point.
 
-use crate::{Currency, Money};
+use crate::format::symbol_en_us;
+use crate::{Currency, Locale, Money};
 
 /// Errors from [`parse_decimal`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -110,12 +111,99 @@ pub fn parse_decimal(text: &str, currency: Currency) -> Result<Money, ParseAmoun
     Ok(Money::from_minor(minor, currency))
 }
 
+/// Parses an amount that a person typed, for example in a split form.
+///
+/// Accepts an optional sign, the currency symbol of the locale (`$`), digits
+/// with optional comma groups (`1,234`), and an optional fraction. Rejects
+/// exponent notation and more decimal places than the currency has.
+///
+/// # Errors
+///
+/// [`ParseAmountError`] for bad syntax, lost precision, or overflow.
+pub fn parse_money_input(
+    text: &str,
+    currency: Currency,
+    locale: Locale,
+) -> Result<Money, ParseAmountError> {
+    let Locale::EnUs = locale;
+    let syntax = || ParseAmountError::Syntax(text.to_owned());
+    let s = text.trim();
+    let (negative, s) = if let Some(rest) = s.strip_prefix(['-', '\u{2212}']) {
+        (true, rest)
+    } else {
+        (false, s.strip_prefix('+').unwrap_or(s))
+    };
+    let s = s
+        .strip_prefix(symbol_en_us(currency))
+        .unwrap_or(s)
+        .trim_start();
+    if s.contains(['e', 'E', '+', '-', '\u{2212}']) {
+        return Err(syntax());
+    }
+    let (int_part, frac) = match s.split_once('.') {
+        Some((i, f)) => (i, Some(f)),
+        None => (s, None),
+    };
+    if int_part.contains(',') {
+        let mut groups = int_part.split(',');
+        let first = groups.next().unwrap_or_default();
+        if first.is_empty() || first.len() > 3 || groups.any(|g| g.len() != 3) {
+            return Err(syntax());
+        }
+    }
+    let mut plain = String::with_capacity(s.len() + 1);
+    if negative {
+        plain.push('-');
+    }
+    plain.extend(int_part.chars().filter(|&c| c != ','));
+    if let Some(frac) = frac {
+        plain.push('.');
+        plain.push_str(frac);
+    }
+    parse_decimal(&plain, currency).map_err(|e| match e {
+        ParseAmountError::Syntax(_) => syntax(),
+        ParseAmountError::Precision { exponent, .. } => ParseAmountError::Precision {
+            text: text.to_owned(),
+            exponent,
+        },
+        ParseAmountError::Overflow(_) => ParseAmountError::Overflow(text.to_owned()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn usd(text: &str) -> Result<i64, ParseAmountError> {
         parse_decimal(text, Currency::Usd).map(Money::minor)
+    }
+
+    fn typed(text: &str) -> Result<i64, ParseAmountError> {
+        parse_money_input(text, Currency::Usd, Locale::EnUs).map(Money::minor)
+    }
+
+    #[test]
+    fn parses_typed_amounts() {
+        assert_eq!(typed("12.5"), Ok(1250));
+        assert_eq!(typed(" $1,234.56 "), Ok(123_456));
+        assert_eq!(typed("-$3"), Ok(-300));
+        assert_eq!(typed("\u{2212}3.20"), Ok(-320));
+        assert_eq!(typed("$ 7"), Ok(700));
+        assert_eq!(typed("1234"), Ok(123_400));
+        assert_eq!(typed(".5"), Ok(50));
+        for bad in [
+            "", "$", "1e3", "1,23", "12,3456", ",123", "1.2.3", "$-5", "abc", "--5",
+        ] {
+            assert!(typed(bad).is_err(), "{bad:?} should fail");
+        }
+        assert!(matches!(
+            typed("1.005"),
+            Err(ParseAmountError::Precision { exponent: 2, .. })
+        ));
+        assert_eq!(
+            parse_money_input("\u{a5}1,800", Currency::Jpy, Locale::EnUs).map(Money::minor),
+            Ok(1800)
+        );
     }
 
     #[test]

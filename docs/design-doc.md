@@ -626,6 +626,16 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 - The worker job starts right away after a new connection or a webhook (D15). The 6-hour fallback poll runs in each hourly worker run.
 - Access tokens use envelope encryption (`platform-crypto`): a household data key wraps them with AES-256-GCM, and `token-kek` wraps the household key (§8.8).
 
+**Phase 1 implementation notes (M3).**
+
+- **Outbox relay.** Before each job claim, the worker turns unpublished outbox events into jobs for their subscribers, then marks the events published. Jobs for one household share a dedupe key, so a burst of events gives one queued job. `transactions.changed` starts `categorize.household`.
+- **Enrich.** `categorize.household` takes each transaction whose `enriched_version` is empty. A sync clears it for every new or changed row. The job sets the merchant and the automatic category (D14), then writes `enriched_version = raw_version`. A row that a sync changed during the job keeps an empty version and goes into the next batch.
+- **Merchants.** The provider merchant name wins. Without it, the key is the cleaned description: no processor prefix (`SQ *`), store number, reference code, or trailing state. A cleaned description that starts with a provider merchant key, at a word boundary, joins that merchant (`uber sf` joins `uber`).
+- **Categories.** Each household gets 23 seeded categories (a database trigger on `households`). `kind` is `fixed`, `flex`, `non_monthly`, `income`, or `transfer`. Income and transfers are not spending. Health and giving are `sensitive` (§7.5). Plaid `OTHER` maps to no category, so the person can find these with the "No category" filter.
+- **Person edits.** `user_overrides` holds the category, merchant name, note, and hidden flag. The edit wins over every automatic result and is never changed by enrichment. When a pending transaction posts, the sync moves its edit to the posted transaction (§10.2 Pending to posted). Splits are for posted transactions only, because the amount can change when a transaction posts.
+- **Rules.** A rule matches a merchant or a text in the description, optionally only money in or money out. The newest rule has the highest priority. A rule for the same match replaces the old one. Creating or deleting a rule enriches the household again, so rules apply to past and future transactions.
+- **Tenancy.** Foreign keys do not apply row-level security. Every category, merchant, or rule ID in a request is checked with a query in the household's transaction before it is used.
+
 ### 10.3 Categorization model
 
 - Input features: normalized merchant, MCC (if present), provider category, amount bucket, day of week, account type.
@@ -698,8 +708,9 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `POST` | `/v1/webhooks/plaid` | Plaid webhooks. Signed (ES256 JWT). No session. |
 | `GET` | `/v1/accounts` | List accounts. |
 | `GET` | `/v1/transactions` | List transactions. Filters: account, category, date range, search. |
-| `PATCH` | `/v1/transactions/{id}` | Edit category, merchant, note, hidden. |
-| `POST` | `/v1/rules` | Create a categorization rule. |
+| `PATCH` | `/v1/transactions/{id}` | Edit category, merchant, note, hidden. Also `GET /v1/transactions/{id}` and `PUT /v1/transactions/{id}/splits`. |
+| `GET` | `/v1/categories` | List categories. |
+| `POST` | `/v1/rules` | Create a categorization rule. It applies to past and future transactions. Also `GET /v1/rules` and `DELETE /v1/rules/{id}`. |
 | `GET` | `/v1/budgets/{month}` | Get the budget for a month. |
 | `PUT` | `/v1/budgets/{month}/categories/{id}` | Set the plan for a category. |
 | `GET` | `/v1/insights` | List current insights for a view. |
@@ -984,6 +995,7 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | D10 | 2026-11-15 | MVP insight text uses templates only. LLM rephrase (Section 7.5) is off. | The Claude API has no free tier. Templates are already the fallback path (D5). Turn it on per rule later. |
 | D11 | 2026-11-15 | Phase 1 supports `en-US` and USD only. | One user. Hand-written formatting in `savespace-core` until ICU4X. |
 | D12 | 2026-11-16 | Phase 1 sign-in: passkeys plus 10 single-use recovery codes. No email fallback. A one-time setup code registers the first passkey, then setup closes. | One user. An email fallback needs an email vendor and a sending domain. Recovery codes need neither. |
+| D14 | 2026-11-16 | Phase 1 categorization order: the person's edit, then the person's rules, then a mapping from the Plaid category. The ML model (§10.3) waits until enough categories are confirmed (Phase 2 or later). | One person's edits are too few to train a model. A fixed mapping is predictable and easy to test. |
 | D15 | 2026-11-17 | MVP live updates use polling (the web app polls a syncing connection every 3 s). SSE (§11.5) comes later. After a new connection or a webhook, the API starts the worker job right away through the Cloud Run Admin API. | Cloud Run throttles CPU between requests, and the scheduled worker runs once an hour. Without the start, the first sync could wait an hour. |
 
 ---

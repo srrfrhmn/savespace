@@ -13,7 +13,7 @@ pub enum Locale {
     EnUs,
 }
 
-const fn symbol_en_us(currency: Currency) -> &'static str {
+pub(crate) const fn symbol_en_us(currency: Currency) -> &'static str {
     match currency {
         Currency::Usd => "$",
         Currency::Eur => "€",

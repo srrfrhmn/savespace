@@ -304,6 +304,35 @@
         }
       }
     },
+    "/categories": {
+      "get": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Lists categories.",
+        "operationId": "list_categories",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/connections": {
       "get": {
         "tags": [
@@ -649,12 +678,110 @@
         }
       }
     },
+    "/rules": {
+      "get": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Lists categorization rules.",
+        "operationId": "list_rules",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Creates a rule. It applies to past and future transactions, and replaces\na rule with the same match. The person's own edits still win.",
+        "operationId": "create_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rules/{id}": {
+      "delete": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Deletes a rule. Its transactions get the next matching rule or the\nautomatic category.",
+        "operationId": "delete_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The rule ID (`rule_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/transactions": {
       "get": {
         "tags": [
-          "connections"
+          "transactions"
         ],
-        "summary": "Lists transactions, newest first. M3 adds filters and search.",
+        "summary": "Lists transactions, newest first, with filters and search.",
         "operationId": "list_transactions",
         "parameters": [
           {
@@ -676,6 +803,60 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "description": "One account (`acct_…`).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A category (`cat_…`), or `none` for transactions without a category.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "On or after this date (`YYYY-MM-DD`).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "On or before this date (`YYYY-MM-DD`).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Text in the description, merchant, or note.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_hidden",
+            "in": "query",
+            "description": "Also list hidden transactions. The default is false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -684,6 +865,144 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransactionList"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{id}": {
+      "get": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Gets one transaction.",
+        "operationId": "get_transaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The transaction ID (`txn_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Edits the category, merchant name, note, or hidden state.",
+        "operationId": "update_transaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The transaction ID (`txn_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTransactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{id}/splits": {
+      "put": {
+        "tags": [
+          "transactions"
+        ],
+        "summary": "Replaces the split of a posted transaction.",
+        "operationId": "set_splits",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The transaction ID (`txn_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
                 }
               }
             }
@@ -924,6 +1243,50 @@
           }
         }
       },
+      "Category": {
+        "type": "object",
+        "description": "A category.",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "sensitive"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The category ID (`cat_…`)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`fixed`, `flex`, `non_monthly`, `income`, or `transfer`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Health, giving, and similar. SaveSpace is more careful with these."
+          }
+        }
+      },
+      "CategoryList": {
+        "type": "object",
+        "description": "The categories, in display order.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "description": "The categories."
+          }
+        }
+      },
       "Challenge": {
         "type": "object",
         "description": "A WebAuthn challenge.",
@@ -1027,6 +1390,25 @@
             "description": "The `public_token` from Plaid Link `onSuccess`."
           }
         }
+      },
+      "CreateRuleRequest": {
+        "type": "object",
+        "description": "Create a rule.",
+        "required": [
+          "match",
+          "category_id"
+        ],
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "description": "The category to set (`cat_…`)."
+          },
+          "match": {
+            "$ref": "#/components/schemas/RuleMatchBody",
+            "description": "What it matches."
+          }
+        },
+        "additionalProperties": false
       },
       "ErrorBody": {
         "type": "object",
@@ -1231,6 +1613,92 @@
           }
         }
       },
+      "Rule": {
+        "type": "object",
+        "description": "A categorization rule.",
+        "required": [
+          "id",
+          "match",
+          "category_id",
+          "transactions",
+          "created_at"
+        ],
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "description": "The category it sets (`cat_…`)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was made (RFC 3339)."
+          },
+          "id": {
+            "type": "string",
+            "description": "The rule ID (`rule_…`)."
+          },
+          "match": {
+            "$ref": "#/components/schemas/RuleMatchBody",
+            "description": "What it matches."
+          },
+          "merchant_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The merchant name, for a merchant rule."
+          },
+          "transactions": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many transactions it categorizes now, without those where the\nperson set the category."
+          }
+        }
+      },
+      "RuleList": {
+        "type": "object",
+        "description": "The rules, highest priority first.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rule"
+            },
+            "description": "The rules."
+          }
+        }
+      },
+      "RuleMatchBody": {
+        "type": "object",
+        "description": "What a rule matches. Set exactly one of `merchant_id` and\n`name_contains`.",
+        "properties": {
+          "direction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`in` (money in) or `out` (money out). Absent means both."
+          },
+          "merchant_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A merchant ID (`mer_…`)."
+          },
+          "name_contains": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Text in the description or merchant name, 2 to 100 characters."
+          }
+        },
+        "additionalProperties": false
+      },
       "SetupFinishRequest": {
         "type": "object",
         "description": "Finish owner setup.",
@@ -1285,6 +1753,67 @@
           }
         }
       },
+      "Split": {
+        "type": "object",
+        "description": "One part of a split.",
+        "required": [
+          "id",
+          "category_id",
+          "amount_minor"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Same sign as the transaction."
+          },
+          "category_id": {
+            "type": "string",
+            "description": "The category ID (`cat_…`)."
+          },
+          "id": {
+            "type": "string",
+            "description": "The split ID (`spl_…`)."
+          }
+        }
+      },
+      "SplitInput": {
+        "type": "object",
+        "description": "One new split part.",
+        "required": [
+          "category_id",
+          "amount_minor"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Same sign as the transaction, not zero."
+          },
+          "category_id": {
+            "type": "string",
+            "description": "The category ID (`cat_…`)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SplitsRequest": {
+        "type": "object",
+        "description": "The split parts. They must add up to the transaction amount.",
+        "required": [
+          "splits"
+        ],
+        "properties": {
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitInput"
+            },
+            "description": "2 to 10 parts, or none to remove the split."
+          }
+        },
+        "additionalProperties": false
+      },
       "StepUp": {
         "type": "object",
         "description": "The result of a step-up check.",
@@ -1301,7 +1830,7 @@
       },
       "Transaction": {
         "type": "object",
-        "description": "A transaction.",
+        "description": "A transaction with its category and the person's edits.",
         "required": [
           "id",
           "account_id",
@@ -1309,7 +1838,9 @@
           "currency",
           "date",
           "name",
-          "pending"
+          "pending",
+          "hidden",
+          "splits"
         ],
         "properties": {
           "account_id": {
@@ -1321,12 +1852,19 @@
             "format": "int64",
             "description": "The amount in minor units. Negative is money out."
           },
-          "category_primary": {
+          "category_id": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The provider's broad category."
+            "description": "The category ID (`cat_…`)."
+          },
+          "category_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the category came from: `person`, `rule`, or `provider`."
           },
           "currency": {
             "type": "string",
@@ -1337,24 +1875,49 @@
             "format": "date",
             "description": "The bank date (`YYYY-MM-DD`)."
           },
+          "hidden": {
+            "type": "boolean",
+            "description": "Hidden from lists, budgets, and insights."
+          },
           "id": {
             "type": "string",
             "description": "The transaction ID (`txn_…`)."
+          },
+          "merchant_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The merchant ID (`mer_…`), if SaveSpace found one."
           },
           "merchant_name": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The merchant, if known."
+            "description": "The merchant name to show."
           },
           "name": {
             "type": "string",
-            "description": "The description."
+            "description": "The bank description."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The person's note."
           },
           "pending": {
             "type": "boolean",
             "description": "True while pending."
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Split"
+            },
+            "description": "The parts, if split. Empty if not."
           }
         }
       },
@@ -1378,6 +1941,41 @@
             "description": "True if more transactions follow. Pass the last ID as `starting_after`."
           }
         }
+      },
+      "UpdateTransactionRequest": {
+        "type": "object",
+        "description": "The person's edits. A field that is not in the body does not change.\n`null` clears it.",
+        "properties": {
+          "category_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The category ID (`cat_…`). `null` gives the automatic category back."
+          },
+          "hidden": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Hide from lists, budgets, and insights."
+          },
+          "merchant_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The merchant name to show, up to 100 characters."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note, up to 500 characters."
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
@@ -1392,7 +1990,11 @@
     },
     {
       "name": "connections",
-      "description": "Bank connections, accounts, and transactions."
+      "description": "Bank connections and accounts."
+    },
+    {
+      "name": "transactions",
+      "description": "Transactions, categories, and categorization rules."
     },
     {
       "name": "webhooks",

@@ -10,6 +10,8 @@ import { meQuery } from "./auth/session";
 import { Accounts } from "./screens/accounts";
 import { Recover, Setup, SignIn } from "./screens/auth";
 import { Home, Security } from "./screens/home";
+import { Rules } from "./screens/rules";
+import { Transactions } from "./screens/transactions";
 
 type Context = { queryClient: QueryClient };
 
@@ -53,6 +55,20 @@ const accountsRoute = createRoute({
   component: Accounts,
 });
 
+const transactionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/transactions",
+  beforeLoad: requireSession,
+  component: Transactions,
+});
+
+const rulesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/rules",
+  beforeLoad: requireSession,
+  component: Rules,
+});
+
 const securityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/security",
@@ -83,6 +99,8 @@ const setupRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   homeRoute,
   accountsRoute,
+  transactionsRoute,
+  rulesRoute,
   securityRoute,
   signInRoute,
   recoverRoute,

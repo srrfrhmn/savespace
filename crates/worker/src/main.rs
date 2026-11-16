@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use platform_db::PgPool;
 use platform_db::jobs::{self, FailOutcome, Job, NewJob};
+use platform_db::outbox::{self, Subscription};
 
 use crate::handlers::Registry;
 
@@ -27,6 +28,12 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// `run` enqueues the periodic jobs this often. `drain` runs every hour and
 /// enqueues them on each start.
 const SCHEDULE_INTERVAL: Duration = Duration::from_hours(1);
+
+/// Outbox topics and the jobs they start (§8.6).
+const SUBSCRIPTIONS: &[Subscription] = &[Subscription {
+    topic: domain_sync::TRANSACTIONS_CHANGED,
+    job_kind: domain_categorize::ENRICH_JOB,
+}];
 
 /// Enqueues the periodic jobs. The dedupe key keeps one queued job per kind.
 async fn schedule(pool: &PgPool) {
@@ -50,6 +57,7 @@ fn registry(pool: &PgPool) -> anyhow::Result<Registry> {
     Ok(Registry::new(handlers::Ctx {
         pool: pool.clone(),
         sync,
+        categorize: domain_categorize::CategorizeService::new(pool.clone()),
     }))
 }
 
@@ -153,8 +161,13 @@ async fn run(pool: &PgPool, registry: &Registry, worker_id: &str) -> anyhow::Res
     Ok(())
 }
 
-/// Claims and runs one job. Returns `false` if no job was due.
+/// Relays outbox events, then claims and runs one job. Returns `false` if no
+/// job was due.
 async fn run_one(pool: &PgPool, registry: &Registry, worker_id: &str) -> anyhow::Result<bool> {
+    // A job that just finished may have written events. Their jobs run next.
+    if let Err(e) = outbox::relay(pool, SUBSCRIPTIONS).await {
+        tracing::warn!(error = %e, "outbox relay failed");
+    }
     let Some(job) = jobs::claim(pool, &registry.kinds(), worker_id, LEASE)
         .await
         .context("claim")?

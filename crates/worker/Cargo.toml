@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 aggregator-plaid.workspace = true
 anyhow.workspace = true
+domain-categorize.workspace = true
 domain-identity.workspace = true
 domain-sync.workspace = true
 platform-db.workspace = true

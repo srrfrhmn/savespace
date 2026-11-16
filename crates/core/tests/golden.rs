@@ -30,3 +30,30 @@ fn format_money_matches_golden_file() {
         assert_eq!(actual, case.expected, "minor={minor} currency={currency}");
     }
 }
+
+#[derive(Deserialize)]
+struct ParseFile {
+    cases: Vec<ParseCase>,
+}
+
+/// `expected` is minor units as a string, or `null` for an error.
+#[derive(Deserialize)]
+struct ParseCase {
+    text: String,
+    currency: String,
+    expected: Option<String>,
+}
+
+#[test]
+fn parse_money_input_matches_golden_file() {
+    let raw = include_str!("golden/parse_input.json");
+    let golden: ParseFile = serde_json::from_str(raw).expect("valid golden file");
+    assert!(!golden.cases.is_empty());
+    for case in golden.cases {
+        let currency: Currency = case.currency.parse().expect("supported currency");
+        let actual = savespace_core::parse_money_input(&case.text, currency, Locale::EnUs)
+            .ok()
+            .map(|m| m.minor().to_string());
+        assert_eq!(actual, case.expected, "text={:?}", case.text);
+    }
+}

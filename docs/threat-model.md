@@ -50,11 +50,13 @@ Status key: **Done** = built and tested. **Planned** = in a later milestone, wit
 | STRIDE | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
 | Information disclosure | A bug reads another household's rows. | Row-level security on every tenant table, keyed on `app.household_id`, set per transaction by `platform_db::tenant_tx`. The runtime role is not the table owner, so RLS always applies. Tests run as the runtime role and try cross-household reads and writes. | Done |
-| Elevation of privilege | Pre-sign-in lookups bypass RLS. | Only five narrow `SECURITY DEFINER` functions, with a fixed `search_path`, and `EXECUTE` granted to the runtime role only. | Done |
+| Elevation of privilege | Pre-sign-in lookups bypass RLS. | A few narrow `SECURITY DEFINER` functions, each with a fixed `search_path`. `EXECUTE` is granted to the runtime role only. The category seed runs from a trigger and is not callable by the runtime role. | Done |
 | Tampering | The app changes the schema. | The runtime role has DML only. Migrations run as the owner role in a separate job. | Done |
 | Information disclosure | Backups leak. | `pg_dump` encrypted with `age` before upload. The backup service account can create objects only. | Done |
 | Information disclosure | Plaid tokens leak from the database. | Envelope encryption (`platform-crypto`): AES-256-GCM with a household data key, wrapped by `token-kek`. The associated data binds each ciphertext to its purpose and household. Decrypted keys stay in memory for 5 minutes at most. Deleting the household key makes the tokens unreadable. | Done |
 | Tampering | A duplicate or late sync overwrites newer data. | The sync compares the stored cursor before it writes. Raw provider data is append-only (the runtime role cannot delete it). | Done |
+| Elevation of privilege | A request uses another household's category, merchant, or rule ID. Foreign keys do not apply RLS. | `domain-ledger` and `domain-categorize` look up each ID inside the household's transaction (RLS applies) before they use it. Tests try another household's IDs in edits, splits, and rules. | Done |
+| Tampering | A person's edit is lost or changed by automation. | Edits are an overlay (`user_overrides`). Enrichment never writes to it. A pending-to-posted change moves the edit. | Done |
 | Denial of service | A webhook flood starts many worker runs. | Webhooks must be signed. Worker starts are at most one per 20 seconds. The worker job runs one task at a time, and Cloud Run caps cost. | Done |
 
 ## External inputs
@@ -62,6 +64,7 @@ Status key: **Done** = built and tested. **Planned** = in a later milestone, wit
 | STRIDE | Threat | Mitigation | Status |
 | --- | --- | --- | --- |
 | Spoofing | Forged Plaid webhook. | Verify the ES256 JWT in `Plaid-Verification` (key from `/webhook_verification_key/get`, cached, expired keys rejected) and the body SHA-256 (constant-time). Reject `iat` older than 5 minutes. Store the raw webhook and return 200. No session, no `Origin` check: the signature is the authentication. | Done |
+| Tampering | SQL wildcards or injection through search. | Search text is a bound parameter. `%`, `_`, and `\` are escaped before `ILIKE`. Search has a 100-character limit. Notes and merchant names have length limits and reject control characters. | Done |
 | Tampering | Script injection in the web app. | CSP: `default-src 'self'`, no inline scripts or styles, `frame-ancestors 'none'`. React escapes output. The only additions are Plaid Link's script URL, its frame origin, and the Plaid API origin for the current environment. Plaid's script also adds an inline style whose content changes on each load. The CSP blocks it, and Link works without it. | Done |
 | Spoofing | A stolen session connects an attacker's bank or removes a connection. | Link tokens and connection removal need step-up (a passkey check in the last 5 minutes). | Done |
 | Information disclosure | Host-name confusion between the two `run.app` URLs. | The API redirects every host name except the public origin. Passkeys work only on the public origin. | Done |
