@@ -1,0 +1,3 @@
+# age public key for database backups (.github/workflows/backup.yml).
+# The private key is offline with the owner. See infra/README.md.
+age1y7j2w0fnfqfd4799w8hvq4sn4lz95090t2cgel8vxup0l07t2ptq5h5uk8

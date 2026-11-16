@@ -285,4 +285,41 @@ const all = [];
   all.push(d);
 }
 
+// 08 — MVP deployment (design doc §8.8)
+{
+  const d = new Diagram("08-mvp-deployment");
+  d.title(0, 0, "SaveSpace MVP deployment: one user, $0 per month (free tiers)");
+  d.box("owner", 30, 80, 300, 80, "Owner's browser\nweb app · core (WASM)", { bg: C.blue });
+  d.zone("z-gh", 690, 60, 730, 120, "GitHub");
+  d.box("gha", 710, 95, 690, 60, "GitHub Actions: ci · deploy (OIDC) · backup · uptime", { bg: C.gray, size: 18 });
+  d.zone("z-gcp", 0, 200, 1420, 290, "Google Cloud (us-east1)");
+  d.box("sched", 360, 240, 300, 50, "Cloud Scheduler (hourly)", { bg: C.gray, size: 18 });
+  d.box("api", 30, 320, 300, 110, "savespace-api\nCloud Run service\nAPI + web app · 0–1 instance", { bg: C.violet, size: 18 });
+  d.box("worker", 360, 320, 300, 110, "savespace-worker\nCloud Run job\nworker drain", { bg: C.violet, size: 18 });
+  d.box("migrate", 690, 320, 280, 110, "savespace-migrate\nCloud Run job\nworker migrate", { bg: C.violet, size: 18 });
+  d.box("registry", 1030, 240, 360, 50, "Artifact Registry (5 newest)", { bg: C.white, size: 18 });
+  d.box("secrets", 1030, 300, 360, 50, "Secret Manager (4 secrets)", { bg: C.white, size: 18 });
+  d.box("logs", 1030, 360, 360, 50, "Cloud Logging", { bg: C.white, size: 18 });
+  d.box("backups", 1030, 420, 360, 50, "Cloud Storage: backups (age)", { bg: C.white, size: 18 });
+  d.zone("z-neon", 0, 530, 1000, 130, "Neon (free plan)");
+  d.box("pg", 30, 570, 940, 70, "PostgreSQL 18 · scales to zero\nsavespace_owner: migrations, backups · savespace_app: DML only (RLS applies)", { bg: C.green, size: 18 });
+  d.zone("z-ext", 1030, 530, 390, 130, "External");
+  d.box("plaid", 1050, 570, 350, 70, "Plaid\nsandbox → Trial plan", { bg: C.orange, size: 18 });
+
+  d.arrow("owner", "api", "", { sides: ["b", "t"], offset: [[110, 0], [110, 0]] });
+  d.text(300, 168, "HTTPS (run.app)", { size: 16 });
+  d.arrow("sched", "worker", "", { sides: ["b", "t"] });
+  d.arrow("gha", "registry", "", { sides: ["b", "t"], offset: [[155, 0], [0, 0]] });
+  d.text(1220, 206, "push image", { size: 16 });
+  d.arrow("gha", "migrate", "", { sides: ["b", "t"], offset: [[-225, 0], [0, 0]] });
+  d.text(840, 206, "deploy", { size: 16 });
+  d.arrow("api", "pg", "sqlx · TLS", { sides: ["b", "t"], offset: [[80, 0], [-240, 0]] });
+  d.arrow("worker", "pg", "claim jobs", { sides: ["b", "t"], offset: [[-50, 0], [-40, 0]] });
+  d.arrow("migrate", "pg", "", { sides: ["b", "t"], offset: [[0, 0], [330, 0]] });
+  d.arrow("worker", "plaid", "sync (phase 1)", {
+    sides: ["b", "t"], dashed: true, offset: [[100, 0], [0, 0]], via: [[610, 505], [1225, 505]], labelAt: [860, 512],
+  });
+  all.push(d);
+}
+
 for (const d of all) console.log(d.save(OUT));

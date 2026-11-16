@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+project_id           = "savespace-prod-XXXX"
+billing_account      = "XXXXXX-XXXXXX-XXXXXX"
+github_repository_id = "1009863521"
+plaid_client_id      = "your-plaid-client-id"
+plaid_env            = "sandbox"
+
+# Leave unset on the first apply. Then set it to the first pushed image.
+# image = "us-east1-docker.pkg.dev/savespace-prod-XXXX/savespace/app:<git-sha>"

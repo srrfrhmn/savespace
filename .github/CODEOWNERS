@@ -18,6 +18,10 @@
 /crates/domain-insights/            @srrfrhmn
 /evals/insights/                    @srrfrhmn
 
+# Infrastructure, deploy, and backups
+/infra/                             @srrfrhmn
+/Dockerfile                         @srrfrhmn
+
 # CI and supply chain
 /.github/                           @srrfrhmn
 /deny.toml                          @srrfrhmn

@@ -1,0 +1,16 @@
+# Keep the build context small. Never send secrets or local builds.
+.git
+.env
+.env.*
+**/target
+**/node_modules
+**/dist
+bindings/wasm/pkg
+infra
+evals
+clients
+apps/ios
+apps/android
+docs
+!docs/diagrams/tools/package.json
+*.md

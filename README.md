@@ -12,11 +12,11 @@ Phase 0 (foundations). See design doc §16 for the roadmap.
 savespace/
 ├── crates/
 │   ├── core/                    # savespace-core: Money, currency, baselines, formatting (no I/O)
-│   ├── api/                     # HTTP API (axum). GET /healthz
-│   ├── worker/                  # Job runner
+│   ├── api/                     # HTTP API (axum). Serves the web app. GET /health, /ready
+│   ├── worker/                  # Job runner: run, drain, migrate
 │   ├── domain-*/                # Domain libraries (Phase 1)
 │   ├── aggregator-plaid/        # Plaid adapter (Phase 1)
-│   ├── platform-db/             # Database layer; migrations/
+│   ├── platform-db/             # Pool, job queue, migrations/
 │   ├── platform-observability/  # tracing setup
 │   └── xtask/                   # Repo automation: cargo xtask check-deps
 ├── bindings/
@@ -27,7 +27,7 @@ savespace/
 │   ├── ios/                     # Phase 2 placeholder
 │   └── android/                 # Phase 3 placeholder
 ├── clients/                     # Generated API clients (Phase 1)
-├── infra/terraform/             # Infrastructure (planned layout)
+├── infra/                       # Terraform (Google Cloud), ops scripts, runbook
 ├── evals/insights/              # LLM eval sets (Phase 1)
 └── docs/                        # Design doc, diagrams, RFCs
 ```
@@ -39,6 +39,6 @@ pnpm wasm && pnpm install
 docker compose up -d --wait                # PostgreSQL 18
 sqlx migrate run --source crates/platform-db/migrations
 cargo nextest run --workspace
-cargo run -p api                          # http://127.0.0.1:8080/healthz
+cargo run -p api                          # http://127.0.0.1:8080/health
 pnpm --filter @savespace/web dev          # web app
 ```
