@@ -16,6 +16,7 @@ Status key: **Done** = built and tested. **Planned** = in a later milestone, wit
 | Owner setup code | Secret Manager `owner-setup-code` | Registers the first passkey while no owner exists. |
 | Plaid access tokens (M2) | `app.connections`, encrypted with the household key | Read access to bank data. |
 | Financial data (M2+) | Neon | Personal and sensitive. |
+| Check-in notes (M5) | `app.check_ins`, encrypted with the household key | Feelings about money. Very personal. |
 | Database URLs, `token-kek`, Plaid secret | Secret Manager | Full data access. |
 | Deploy rights | GitHub Actions through Workload Identity Federation | Code runs in production. |
 
@@ -56,6 +57,8 @@ Status key: **Done** = built and tested. **Planned** = in a later milestone, wit
 | Information disclosure | Plaid tokens leak from the database. | Envelope encryption (`platform-crypto`): AES-256-GCM with a household data key, wrapped by `token-kek`. The associated data binds each ciphertext to its purpose and household. Decrypted keys stay in memory for 5 minutes at most. Deleting the household key makes the tokens unreadable. | Done |
 | Tampering | A duplicate or late sync overwrites newer data. | The sync compares the stored cursor before it writes. Raw provider data is append-only (the runtime role cannot delete it). | Done |
 | Elevation of privilege | A request uses another household's category, merchant, or rule ID. Foreign keys do not apply RLS. | `domain-ledger` and `domain-categorize` look up each ID inside the household's transaction (RLS applies) before they use it. Tests try another household's IDs in edits, splits, rules, and budget plans. | Done |
+| Information disclosure | Check-in notes leak from the database or backups. | Field-level encryption with the household data key (`Purpose::Note`, the household ID in the associated data). Notes never go to logs or to an LLM (§7.5). | Done |
+| Tampering | A wrong insight keeps showing to everyone. | Kill switch per rule (`app.insight_rule_flags`); the runtime role can read it but not change it. "This is wrong" hides an insight at once. | Done |
 | Tampering | A person's edit is lost or changed by automation. | Edits are an overlay (`user_overrides`). Enrichment never writes to it. A pending-to-posted change moves the edit. | Done |
 | Denial of service | A webhook flood starts many worker runs. | Webhooks must be signed. Worker starts are at most one per 20 seconds. The worker job runs one task at a time, and Cloud Run caps cost. | Done |
 

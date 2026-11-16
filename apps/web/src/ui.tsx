@@ -106,6 +106,10 @@ export function describeError(error: unknown): string {
         return "Use up to 500 characters for the note.";
       case "merchant_name_invalid":
         return "Use up to 100 characters for the merchant name.";
+      case "notes_unavailable":
+        return "Notes are not available right now. Save the check-in without a note.";
+      case "score_invalid":
+        return "Choose a number from 1 to 5.";
       case "plan_invalid":
         return "Use an amount of 0 or more.";
       case "category_not_budgeted":

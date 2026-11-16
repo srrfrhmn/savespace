@@ -43,11 +43,19 @@ const SUBSCRIPTIONS: &[Subscription] = &[
         topic: domain_ledger::TRANSACTIONS_EDITED,
         job_kind: domain_recurring::DETECT_JOB,
     },
+    Subscription {
+        topic: domain_recurring::RECURRING_UPDATED,
+        job_kind: domain_insights::GENERATE_JOB,
+    },
 ];
 
 /// Enqueues the periodic jobs. The dedupe key keeps one queued job per kind.
 async fn schedule(pool: &PgPool) {
-    for kind in [handlers::CLEANUP, domain_sync::POLL_JOB] {
+    for kind in [
+        handlers::CLEANUP,
+        domain_sync::POLL_JOB,
+        domain_insights::DAILY_JOB,
+    ] {
         let mut job = NewJob::new(kind, serde_json::json!({}));
         job.dedupe_key = Some("periodic");
         if let Err(e) = jobs::enqueue(pool, &job).await {
@@ -69,6 +77,8 @@ fn registry(pool: &PgPool) -> anyhow::Result<Registry> {
         sync,
         categorize: domain_categorize::CategorizeService::new(pool.clone()),
         recurring: domain_recurring::RecurringService::new(pool.clone()),
+        ledger: domain_ledger::LedgerService::new(pool.clone()),
+        insights: domain_insights::InsightService::new(pool.clone()),
     }))
 }
 

@@ -39,6 +39,8 @@ use axum::routing::get;
 use axum::{Json, Router};
 use domain_categorize::CategorizeService;
 use domain_identity::{Identity, IdentityConfig};
+use domain_insights::InsightService;
+use domain_insights::checkin::CheckInService;
 use domain_ledger::LedgerService;
 use domain_recurring::RecurringService;
 use platform_db::PgPool;
@@ -181,6 +183,10 @@ pub struct AppState {
     pub categorize: CategorizeService,
     /// Recurring series.
     pub recurring: RecurringService,
+    /// Insights and the weekly reflection.
+    pub insights: InsightService,
+    /// Check-ins. Notes need the keyring.
+    pub check_ins: CheckInService,
 }
 
 impl AppState {
@@ -202,6 +208,8 @@ impl AppState {
             ledger: LedgerService::new(db.clone()),
             categorize: CategorizeService::new(db.clone()),
             recurring: RecurringService::new(db.clone()),
+            insights: InsightService::new(db.clone()),
+            check_ins: CheckInService::new(db.clone(), None),
             db,
             identity,
             public_origin: Arc::new(public_origin),
@@ -218,6 +226,13 @@ impl AppState {
     pub fn with_sync(mut self, sync: SyncService, plaid: PlaidClient) -> Self {
         self.sync = Some(sync);
         self.plaid = Some(plaid);
+        self
+    }
+
+    /// Adds the keyring for encrypted check-in notes.
+    #[must_use]
+    pub fn with_keyring(mut self, keyring: platform_crypto::Keyring) -> Self {
+        self.check_ins = CheckInService::new(self.db.clone(), Some(keyring));
         self
     }
 
@@ -305,6 +320,7 @@ async fn api_not_found() -> ApiError {
         (name = "connections", description = "Bank connections and accounts."),
         (name = "transactions", description = "Transactions, categories, and categorization rules."),
         (name = "budget", description = "The flex budget, the calm state, and recurring series."),
+        (name = "insights", description = "Insights, feedback, the weekly reflection, and check-ins."),
         (name = "webhooks", description = "Signed webhooks from providers.")
     )
 )]
@@ -333,6 +349,7 @@ fn v1_parts() -> V1 {
         .merge(routes::connections::routes())
         .merge(routes::transactions::routes())
         .merge(routes::budget::routes())
+        .merge(routes::insights::routes())
         .split_for_parts();
     doc.merge(d);
     let (webhooks, d) = routes::webhooks::routes().split_for_parts();

@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";
 import { accountsQuery } from "../connections/data";
 import { bankDate, money, parseAmount } from "../format";
+import { transactionInsightsQuery } from "../insights/data";
+import { InsightCard } from "../insights/feed";
 import {
   type Category,
   categoriesQuery,
@@ -336,6 +338,7 @@ function EditPanel({
       <p className="meta">
         {t.name}. {money(t.amount_minor, t.currency)} on {bankDate(t.date)}.
       </p>
+      <TransactionInsights id={t.id} />
       <form className="form" onSubmit={save}>
         <div className="field">
           <label htmlFor={`${field}-category`}>Category</label>
@@ -396,6 +399,21 @@ function EditPanel({
       {t.pending ? <p className="meta">You can split this after it posts.</p> : null}
       <Notice tone="problem">{error}</Notice>
     </section>
+  );
+}
+
+/** Insights about one transaction, for example "recurring and expected". */
+function TransactionInsights({ id }: { id: string }) {
+  const insights = useQuery(transactionInsightsQuery(id));
+  if (!insights.data || insights.data.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="insight-list">
+      {insights.data.map((i) => (
+        <InsightCard key={i.id} insight={i} />
+      ))}
+    </ul>
   );
 }
 

@@ -7,6 +7,9 @@ import { CalmCard } from "../budget/calm";
 import { budgetQuery, monthKey, recurringQuery, setCalmMode } from "../budget/data";
 import { accountsQuery, type Connection, connectionsQuery } from "../connections/data";
 import { bankDate } from "../format";
+import { CheckInCard } from "../insights/checkin";
+import { homeInsightsQuery, mutesQuery, unmute } from "../insights/data";
+import { InsightFeed } from "../insights/feed";
 import { Button, describeError, Notice, Page, TextField } from "../ui";
 import { RecoveryCodes } from "./auth";
 import { seriesLine, upcoming } from "./recurring";
@@ -53,6 +56,7 @@ export function Home() {
     }
   }
 
+  const insights = useQuery({ ...homeInsightsQuery, enabled: ready });
   const calm = budget.data?.calm;
   return (
     <Page title={me ? `Hello, ${me.display_name}` : "SaveSpace"}>
@@ -63,6 +67,8 @@ export function Home() {
           <HomeStatus connections={connections} accountCount={accounts?.length ?? 0} />
         </section>
       )}
+      <InsightFeed insights={insights.data ?? []} />
+      {ready ? <CheckInCard /> : null}
       {soon.length > 0 ? (
         <section className="card" aria-labelledby="soon-h">
           <h2 id="soon-h">Coming up this week</h2>
@@ -95,6 +101,7 @@ export function Home() {
         <Link to="/budget">Budget</Link>
         <Link to="/transactions">Transactions</Link>
         <Link to="/recurring">Recurring</Link>
+        <Link to="/reflection">Weekly reflection</Link>
         <Link to="/accounts">Accounts</Link>
         <Link to="/settings/security">Security</Link>
         <Button variant="quiet" onPress={doSignOut}>
@@ -144,9 +151,21 @@ function HomeStatus({
   );
 }
 
+/** Plain names for insight rules, for the muted list. */
+const RULE_NAMES: Record<string, string> = {
+  "spend.week_below_usual": "Weeks with less spending than usual",
+  "spend.week_above_usual": "Weeks with more spending than usual",
+  "budget.month_on_track": "On track for the monthly budget",
+  "txn.recurring_expected": "Expected recurring charges",
+  "txn.recurring_higher": "Recurring charges higher than usual",
+  "recurring.upcoming": "Upcoming recurring charges",
+  "balance.may_not_cover": "Cash that may not cover a bill",
+};
+
 export function Security() {
   const queryClient = useQueryClient();
   const me = useQuery(meQuery).data;
+  const mutes = useQuery(mutesQuery);
   const [name, setName] = useState("");
   const [codes, setCodes] = useState<string[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -243,6 +262,36 @@ export function Security() {
         </Button>
         {codes ? <RecoveryCodes codes={codes} /> : null}
       </section>
+
+      {mutes.data && mutes.data.length > 0 ? (
+        <section className="card" aria-labelledby="mutes-heading">
+          <h2 id="mutes-heading">Muted insights</h2>
+          <p>You marked these kinds of insights as not helpful.</p>
+          <ul className="list">
+            {mutes.data.map((rule) => (
+              <li key={rule}>
+                <span>{RULE_NAMES[rule] ?? rule}</span>
+                <Button
+                  variant="quiet"
+                  isPending={busy === rule}
+                  onPress={() =>
+                    act(
+                      rule,
+                      async () => {
+                        await unmute(rule);
+                        await queryClient.invalidateQueries({ queryKey: ["insights"] });
+                      },
+                      "You will see this kind of insight again.",
+                    )
+                  }
+                >
+                  Show again
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <Notice>{message}</Notice>
       <Notice tone="problem">{error}</Notice>

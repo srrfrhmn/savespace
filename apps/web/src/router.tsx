@@ -12,6 +12,7 @@ import { Recover, Setup, SignIn } from "./screens/auth";
 import { Budget } from "./screens/budget";
 import { Home, Security } from "./screens/home";
 import { Recurring } from "./screens/recurring";
+import { ReflectionScreen } from "./screens/reflection";
 import { Rules } from "./screens/rules";
 import { Transactions } from "./screens/transactions";
 
@@ -78,6 +79,13 @@ const recurringRoute = createRoute({
   component: Recurring,
 });
 
+const reflectionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reflection",
+  beforeLoad: requireSession,
+  component: ReflectionScreen,
+});
+
 const rulesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/rules",
@@ -119,6 +127,7 @@ const routeTree = rootRoute.addChildren([
   rulesRoute,
   budgetRoute,
   recurringRoute,
+  reflectionRoute,
   securityRoute,
   signInRoute,
   recoverRoute,

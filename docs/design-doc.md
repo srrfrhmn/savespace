@@ -645,6 +645,20 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 - **Time.** "Today" is the date in the owner's time zone (`users.time_zone`). The server bundles the time zone database, so it does not depend on the container image.
 - **Currency.** One currency per household (`households.currency`, default USD) in Phase 1.
 
+**Phase 1 implementation notes (M5).**
+
+- **Triggers.** `recurring.household` writes `recurring.updated`, which starts `insights.household`. So a sync runs: categorize, then recurring detection, then insights. The hourly worker run also starts `insights.daily`, which queues a run for each household after 06:00 local time if it has not run that day (`households.insights_run_on`).
+- **Rules in Phase 1.** `spend.week_below_usual` (reassurance), `spend.week_above_usual` (awareness), `budget.month_on_track` (reassurance, linear pace), `txn.recurring_expected` (reassurance) and its variant `txn.recurring_higher` (awareness), `recurring.upcoming` (anticipation, next 3 days), and `balance.may_not_cover` (concern). Weekly comparisons are like with like: Monday to today against the same span in up to 12 earlier weeks, and need 6 weeks.
+- **One source for numbers.** The worker reads the month budget from `domain-ledger` and passes the flexible plan and "left" to the pipeline, so an insight shows the same "left" as the Budget page.
+- **Storage.** One open insight per rule and scope. A new run refreshes its text and facts. A rule and scope that was created in the last 7 days is not created again (dedupe). Open insights whose condition no longer holds, or whose rule is off or muted, become `expired`.
+- **Feedback.** "This is wrong" hides the insight and stores the reason (amount, merchant, category, date, other) for review. "Not helpful" dismisses it and lowers the rule's relevance. Three in 30 days mute the rule. The person can unmute it in Security.
+- **Kill switch.** `app.insight_rule_flags` turns a rule off for every household at the next run. Operators change it with SQL. The runtime role can only read it.
+- **Copy checks.** Every template runs through the validator (banned words, tone, 140 characters, no `!`) in property tests over generated fact sets. At run time, a text that fails is dropped and logged. Merchant names in text are cut to 40 characters.
+- **Weekly reflection.** Computed on request from that week's facts, so it is always current: at most 5 cards, ending on a positive or neutral true fact. Below 6 weeks of history it says "SaveSpace needs a few more weeks to learn what is usual for you." (§7.3).
+- **Check-ins.** 1 to 5 and an optional note, at most 500 characters, encrypted with the household data key (`Purpose::Note`). Without `token-kek`, notes are refused and scores still save.
+- **Home view.** Insights about one transaction show in its edit panel, not on the home feed.
+
+### 10.3 Categorization model
 ### 10.3 Categorization model
 
 - Input features: normalized merchant, MCC (if present), provider category, amount bucket, day of week, account type.
@@ -724,10 +738,10 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `PUT` | `/v1/budgets/{month}/categories/{id}` | Set the plan for a category from that month on, and rollover. |
 | `GET` | `/v1/recurring` | List recurring charges and income. |
 | `PATCH` | `/v1/me` | Change display settings (calm mode). |
-| `GET` | `/v1/insights` | List current insights for a view. |
+| `GET` | `/v1/insights` | List current insights for a view (home, or one transaction with `transaction_id`). Also `GET /v1/insights/mutes` and `DELETE /v1/insights/mutes/{rule_id}`. |
 | `POST` | `/v1/insights/{id}/feedback` | Send "wrong" or "not helpful". |
-| `POST` | `/v1/check_ins` | Record a check-in. |
-| `GET` | `/v1/reflections/{week}` | Get the weekly reflection. |
+| `POST` | `/v1/check_ins` | Record a check-in. Also `GET /v1/check_ins`. |
+| `GET` | `/v1/reflections/{week}` | Get the weekly reflection for the week that contains a date (`YYYY-MM-DD`). |
 | `POST` | `/v1/exports` | Start a data export. |
 | `DELETE` | `/v1/me` | Delete the account and all data (step-up authentication required). |
 
