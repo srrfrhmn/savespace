@@ -342,6 +342,30 @@ impl SyncService {
             .collect())
     }
 
+    /// Removes every connection of the household at the provider (account
+    /// deletion, design doc §12.5). The database rows stay: deleting the
+    /// household removes them. Returns how many connections it removed.
+    ///
+    /// # Errors
+    ///
+    /// A transient aggregator error (the caller asks the person to try
+    /// again), or a database or decryption error.
+    pub async fn remove_all_items(&self, household_id: Uuid) -> Result<usize> {
+        let mut tx = platform_db::tenant_tx(&self.pool, household_id).await?;
+        let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM app.connections")
+            .fetch_all(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        for id in &ids {
+            let (_, access_token) = self.access_token(household_id, *id).await?;
+            match self.aggregator.remove_item(&access_token).await {
+                Ok(()) | Err(AggregatorError::ItemGone { .. }) => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(ids.len())
+    }
+
     /// Removes a connection at the provider, then deletes it and all its
     /// accounts and transactions.
     ///

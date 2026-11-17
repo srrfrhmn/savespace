@@ -8,6 +8,9 @@ locals {
     RUST_LOG        = "info"
     PLAID_ENV       = var.plaid_env
     PLAID_CLIENT_ID = var.plaid_client_id
+    # The api: passkeys and redirects. The worker: the VAPID `sub` claim for
+    # Web Push (design doc D13).
+    SAVESPACE_PUBLIC_ORIGIN = local.public_origin
   }
 
   runtime_secret_env = {
@@ -22,7 +25,6 @@ locals {
 
   # Only the api reads these.
   api_plain_env = {
-    SAVESPACE_PUBLIC_ORIGIN = local.public_origin
     # The api starts this job right away for urgent work (design doc D15).
     SAVESPACE_WORKER_JOB = "projects/${var.project_id}/locations/${var.region}/jobs/savespace-worker"
   }

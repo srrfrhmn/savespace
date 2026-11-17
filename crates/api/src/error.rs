@@ -225,7 +225,10 @@ impl From<IdentityError> for ApiError {
                 (StatusCode::CONFLICT, InvalidRequestError, "last_passkey")
             }
             IdentityError::NotFound => return Self::not_found(),
-            IdentityError::Db(_) | IdentityError::State(_) | IdentityError::Config(_) => {
+            IdentityError::Db(_)
+            | IdentityError::State(_)
+            | IdentityError::Config(_)
+            | IdentityError::Crypto(_) => {
                 tracing::error!(error = %e, "identity error");
                 return Self::internal();
             }

@@ -15,6 +15,7 @@ domain-categorize.workspace = true
 domain-identity.workspace = true
 domain-insights.workspace = true
 domain-ledger.workspace = true
+domain-notify.workspace = true
 domain-recurring.workspace = true
 domain-sync.workspace = true
 jiff.workspace = true
@@ -36,6 +37,7 @@ utoipa-axum.workspace = true
 uuid.workspace = true
 webauthn-rs.workspace = true
 http-body-util.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 base64.workspace = true

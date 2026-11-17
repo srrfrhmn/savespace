@@ -11,6 +11,7 @@
 //! - Step-up actions need a passkey check (or recovery code) in the last
 //!   5 minutes.
 
+pub mod export;
 pub mod token;
 
 use std::sync::Arc;
@@ -66,6 +67,9 @@ pub enum IdentityError {
     /// A database error.
     #[error(transparent)]
     Db(#[from] sqlx::Error),
+    /// A decryption error (export of check-in notes).
+    #[error(transparent)]
+    Crypto(#[from] platform_crypto::CryptoError),
     /// Stored state could not be read. This is a bug.
     #[error("stored state is not valid: {0}")]
     State(#[from] serde_json::Error),
@@ -167,12 +171,45 @@ pub struct Me {
     pub time_zone: String,
     /// Calm mode (design doc §6.1).
     pub calm_mode: bool,
+    /// Notification settings (design doc §10.4).
+    pub notifications: NotifySettings,
     /// Step-up actions are allowed until this time.
     pub step_up_until: jiff::Timestamp,
     /// Registered passkeys.
     pub passkeys: Vec<PasskeySummary>,
     /// Unused recovery codes.
     pub recovery_codes_left: i64,
+}
+
+/// Notification settings.
+#[derive(Debug, Clone, Serialize)]
+pub struct NotifySettings {
+    /// Quiet hours start (local).
+    pub quiet_start: jiff::civil::Time,
+    /// Quiet hours end (local).
+    pub quiet_end: jiff::civil::Time,
+    /// Notifications a day, besides concerns. 0 to 5.
+    pub daily_limit: i16,
+    /// Insight kinds not to send as notifications.
+    pub muted_kinds: Vec<String>,
+}
+
+/// A change to the person's settings. `None` leaves a value as it is. The
+/// caller checks the values.
+#[derive(Debug, Clone, Default)]
+pub struct SettingsPatch {
+    /// Calm mode.
+    pub calm_mode: Option<bool>,
+    /// An IANA time zone name.
+    pub time_zone: Option<String>,
+    /// Quiet hours start.
+    pub quiet_start: Option<jiff::civil::Time>,
+    /// Quiet hours end.
+    pub quiet_end: Option<jiff::civil::Time>,
+    /// 0 to 5.
+    pub daily_limit: Option<i16>,
+    /// Insight kinds not to send.
+    pub muted_kinds: Option<Vec<String>>,
 }
 
 /// A registered passkey, without key material.
@@ -605,8 +642,17 @@ impl Identity {
     /// Returns a database error.
     pub async fn me(&self, session: &SessionInfo) -> Result<Me> {
         let mut tx = platform_db::tenant_tx(&self.pool, session.household_id).await?;
-        let (display_name, time_zone, calm_mode): (String, String, bool) = sqlx::query_as(
-            "SELECT display_name, time_zone, calm_mode FROM app.users WHERE id = $1",
+        let (display_name, time_zone, calm_mode, quiet_start, quiet_end, daily_limit, muted_kinds): (
+            String,
+            String,
+            bool,
+            jiff_sqlx::Time,
+            jiff_sqlx::Time,
+            i16,
+            Vec<String>,
+        ) = sqlx::query_as(
+            "SELECT display_name, time_zone, calm_mode, quiet_start, quiet_end, \
+             notify_daily_limit, notify_muted_kinds FROM app.users WHERE id = $1",
         )
         .bind(session.user_id)
         .fetch_one(&mut *tx)
@@ -640,13 +686,19 @@ impl Identity {
             display_name,
             time_zone,
             calm_mode,
+            notifications: NotifySettings {
+                quiet_start: quiet_start.to_jiff(),
+                quiet_end: quiet_end.to_jiff(),
+                daily_limit,
+                muted_kinds,
+            },
             step_up_until: session.step_up_until(),
             passkeys,
             recovery_codes_left,
         })
     }
 
-    /// Changes the person's display settings. `None` leaves a value as it is.
+    /// Changes the person's settings. `None` leaves a value as it is.
     ///
     /// # Errors
     ///
@@ -654,14 +706,64 @@ impl Identity {
     pub async fn update_settings(
         &self,
         session: &SessionInfo,
-        calm_mode: Option<bool>,
+        patch: &SettingsPatch,
     ) -> Result<()> {
         let mut tx = platform_db::tenant_tx(&self.pool, session.household_id).await?;
-        sqlx::query("UPDATE app.users SET calm_mode = coalesce($2, calm_mode) WHERE id = $1")
-            .bind(session.user_id)
-            .bind(calm_mode)
+        sqlx::query(
+            "UPDATE app.users SET calm_mode = coalesce($2, calm_mode), \
+             time_zone = coalesce($3, time_zone), quiet_start = coalesce($4, quiet_start), \
+             quiet_end = coalesce($5, quiet_end), \
+             notify_daily_limit = coalesce($6, notify_daily_limit), \
+             notify_muted_kinds = coalesce($7, notify_muted_kinds) \
+             WHERE id = $1",
+        )
+        .bind(session.user_id)
+        .bind(patch.calm_mode)
+        .bind(&patch.time_zone)
+        .bind(patch.quiet_start.map(jiff_sqlx::Time::from))
+        .bind(patch.quiet_end.map(jiff_sqlx::Time::from))
+        .bind(patch.daily_limit)
+        .bind(&patch.muted_kinds)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Deletes the household and everything in it: people, sessions,
+    /// passkeys, connections, transactions, the household data key, and the
+    /// audit log (design doc §12.5). Remove provider connections first.
+    /// Afterwards, setup is open again for a new owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error.
+    pub async fn delete_household(
+        &self,
+        session: &SessionInfo,
+        request_id: Option<&str>,
+    ) -> Result<()> {
+        let mut tx = platform_db::tenant_tx(&self.pool, session.household_id).await?;
+        // People first: the users policy needs the membership to see them.
+        sqlx::query(
+            "DELETE FROM app.users WHERE id IN \
+             (SELECT user_id FROM app.household_members WHERE household_id = $1)",
+        )
+        .bind(session.household_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM app.households WHERE id = $1")
+            .bind(session.household_id)
             .execute(&mut *tx)
             .await?;
+        // A record without personal data. The household rows are gone.
+        sqlx::query(
+            "INSERT INTO app.audit_log (household_id, user_id, action, request_id) \
+             VALUES (NULL, NULL, 'household.deleted', $1)",
+        )
+        .bind(request_id)
+        .execute(&mut *tx)
+        .await?;
         tx.commit().await?;
         Ok(())
     }

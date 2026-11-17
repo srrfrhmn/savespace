@@ -187,6 +187,10 @@ pub struct AppState {
     pub insights: InsightService,
     /// Check-ins. Notes need the keyring.
     pub check_ins: CheckInService,
+    /// The household key ring, for check-in notes in exports.
+    pub keyring: Option<platform_crypto::Keyring>,
+    /// Notifications and push subscriptions.
+    pub notify: domain_notify::NotifyService,
 }
 
 impl AppState {
@@ -210,6 +214,8 @@ impl AppState {
             recurring: RecurringService::new(db.clone()),
             insights: InsightService::new(db.clone()),
             check_ins: CheckInService::new(db.clone(), None),
+            keyring: None,
+            notify: domain_notify::NotifyService::new(db.clone(), None),
             db,
             identity,
             public_origin: Arc::new(public_origin),
@@ -229,10 +235,18 @@ impl AppState {
         self
     }
 
-    /// Adds the keyring for encrypted check-in notes.
+    /// Adds the key-encryption key: encrypted check-in notes, and the VAPID
+    /// key for Web Push (derived from it, design doc D13).
     #[must_use]
-    pub fn with_keyring(mut self, keyring: platform_crypto::Keyring) -> Self {
-        self.check_ins = CheckInService::new(self.db.clone(), Some(keyring));
+    pub fn with_kek(mut self, kek: platform_crypto::Kek) -> Self {
+        let vapid = domain_notify::webpush::Vapid::derive(
+            kek.subkey(b"vapid").as_ref(),
+            &crate::guard::origin_of(&self.public_origin),
+        );
+        let keyring = platform_crypto::Keyring::new(kek);
+        self.check_ins = CheckInService::new(self.db.clone(), Some(keyring.clone()));
+        self.notify = domain_notify::NotifyService::new(self.db.clone(), Some(vapid));
+        self.keyring = Some(keyring);
         self
     }
 
@@ -350,6 +364,8 @@ fn v1_parts() -> V1 {
         .merge(routes::transactions::routes())
         .merge(routes::budget::routes())
         .merge(routes::insights::routes())
+        .merge(routes::push::routes())
+        .merge(routes::data::routes())
         .split_for_parts();
     doc.merge(d);
     let (webhooks, d) = routes::webhooks::routes().split_for_parts();

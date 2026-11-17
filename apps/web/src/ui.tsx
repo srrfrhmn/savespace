@@ -62,8 +62,16 @@ export function Notice({
   );
 }
 
+/** An error whose message is written for the person. */
+export class UserMessage extends Error {
+  override name = "UserMessage";
+}
+
 /** Plain-language text for an error. Calm and specific (design doc Appendix B). */
 export function describeError(error: unknown): string {
+  if (error instanceof UserMessage) {
+    return error.message;
+  }
   if (error instanceof PasskeyCancelled) {
     return "The passkey request stopped. You can try again.";
   }
@@ -106,6 +114,16 @@ export function describeError(error: unknown): string {
         return "Use up to 500 characters for the note.";
       case "merchant_name_invalid":
         return "Use up to 100 characters for the merchant name.";
+      case "push_unavailable":
+        return "Notifications are not available right now.";
+      case "subscription_invalid":
+        return "This browser's notifications are not supported. Try another browser.";
+      case "subscription_conflict":
+        return "This browser gets notifications for another account.";
+      case "time_zone_invalid":
+        return "That time zone is not known.";
+      case "time_invalid":
+        return "Use a time like 21:00.";
       case "notes_unavailable":
         return "Notes are not available right now. Save the check-in without a note.";
       case "score_invalid":

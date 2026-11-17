@@ -121,6 +121,9 @@ fn cipher(key: &[u8; 32]) -> Aes256Gcm {
 #[derive(Clone)]
 pub struct Kek {
     cipher: Aes256Gcm,
+    /// The base for purpose-specific keys ([`Kek::subkey`]). Never the KEK
+    /// itself: HKDF-SHA256 of the KEK.
+    subkey_prk: Arc<Zeroizing<Vec<u8>>>,
 }
 
 impl std::fmt::Debug for Kek {
@@ -147,9 +150,30 @@ impl Kek {
                 .try_into()
                 .map_err(|_| CryptoError::BadKek)?,
         );
+        let (prk, _) =
+            hkdf::Hkdf::<sha2::Sha256>::extract(Some(b"savespace/v1/subkeys"), key.as_ref());
         Ok(Self {
             cipher: cipher(&key),
+            subkey_prk: Arc::new(Zeroizing::new(prk.to_vec())),
         })
+    }
+
+    /// A 32-byte key for one purpose, derived from the KEK with HKDF-SHA256
+    /// (for example `b"vapid"` for Web Push). Different labels give
+    /// independent keys. Rotating the KEK changes every subkey.
+    pub fn subkey(&self, label: &[u8]) -> Zeroizing<[u8; 32]> {
+        let mut out = Zeroizing::new([0_u8; 32]);
+        if let Ok(hk) = hkdf::Hkdf::<sha2::Sha256>::from_prk(&self.subkey_prk) {
+            // 32 bytes is always a valid output length for HKDF-SHA256.
+            let _ = hk.expand(label, out.as_mut());
+        }
+        out
+    }
+
+    /// Reads the KEK from `SAVESPACE_TOKEN_KEK`, or `None` if it is not set
+    /// or not valid.
+    pub fn try_from_env() -> Option<Self> {
+        Self::from_env().ok()
     }
 
     /// Reads the KEK from `SAVESPACE_TOKEN_KEK`.
@@ -326,6 +350,16 @@ impl Keyring {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn subkeys_are_stable_and_separate() {
+        let a = Kek::from_base64(&STANDARD.encode([1_u8; 32])).unwrap();
+        let b = Kek::from_base64(&STANDARD.encode([2_u8; 32])).unwrap();
+        assert_eq!(*a.subkey(b"vapid"), *a.subkey(b"vapid"));
+        assert_ne!(*a.subkey(b"vapid"), *a.subkey(b"other"));
+        assert_ne!(*a.subkey(b"vapid"), *b.subkey(b"vapid"));
+        assert_ne!(*a.subkey(b"vapid"), [1_u8; 32]);
+    }
 
     fn kek() -> Kek {
         Kek::from_base64(&STANDARD.encode([7_u8; 32])).unwrap_or_else(|_| unreachable!())

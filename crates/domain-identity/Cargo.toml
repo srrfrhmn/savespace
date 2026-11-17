@@ -11,6 +11,7 @@ publish.workspace = true
 base64.workspace = true
 jiff.workspace = true
 jiff-sqlx.workspace = true
+platform-crypto.workspace = true
 platform-db.workspace = true
 rand.workspace = true
 serde.workspace = true

@@ -29,9 +29,9 @@ async fn main() -> anyhow::Result<()> {
     }
     let mut state = state.with_worker(api::worker_kick::WorkerKick::from_env());
     if let Ok(kek) = platform_crypto::Kek::from_env() {
-        state = state.with_keyring(platform_crypto::Keyring::new(kek));
+        state = state.with_kek(kek);
     } else {
-        tracing::warn!("SAVESPACE_TOKEN_KEK not set; check-in notes off");
+        tracing::warn!("SAVESPACE_TOKEN_KEK not set; check-in notes and push off");
     }
     let router = api::build_router(state, config.web_dir.as_deref());
 

@@ -103,7 +103,8 @@ export function Home() {
         <Link to="/recurring">Recurring</Link>
         <Link to="/reflection">Weekly reflection</Link>
         <Link to="/accounts">Accounts</Link>
-        <Link to="/settings/security">Security</Link>
+        <Link to="/settings">Settings</Link>
+        <Link to="/help">Help</Link>
         <Button variant="quiet" onPress={doSignOut}>
           Sign out
         </Button>

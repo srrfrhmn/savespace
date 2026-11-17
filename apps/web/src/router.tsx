@@ -11,9 +11,11 @@ import { Accounts } from "./screens/accounts";
 import { Recover, Setup, SignIn } from "./screens/auth";
 import { Budget } from "./screens/budget";
 import { Home, Security } from "./screens/home";
+import { Deleted, Help, Privacy } from "./screens/info";
 import { Recurring } from "./screens/recurring";
 import { ReflectionScreen } from "./screens/reflection";
 import { Rules } from "./screens/rules";
+import { Settings } from "./screens/settings";
 import { Transactions } from "./screens/transactions";
 
 type Context = { queryClient: QueryClient };
@@ -100,6 +102,31 @@ const securityRoute = createRoute({
   component: Security,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  beforeLoad: requireSession,
+  component: Settings,
+});
+
+const helpRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/help",
+  component: Help,
+});
+
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/privacy",
+  component: Privacy,
+});
+
+const deletedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/deleted",
+  component: Deleted,
+});
+
 const signInRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sign-in",
@@ -129,6 +156,10 @@ const routeTree = rootRoute.addChildren([
   recurringRoute,
   reflectionRoute,
   securityRoute,
+  settingsRoute,
+  helpRoute,
+  privacyRoute,
+  deletedRoute,
   signInRoute,
   recoverRoute,
   setupRoute,
