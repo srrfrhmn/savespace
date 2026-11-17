@@ -49,9 +49,28 @@ const TABLES: &[(&str, &str)] = &[
         "to_jsonb(t) FROM app.insight_feedback t",
     ),
     ("insight_mutes", "to_jsonb(t) FROM app.insight_mutes t"),
+    ("insight_reviews", "to_jsonb(t) FROM app.insight_reviews t"),
     ("notifications", "to_jsonb(t) FROM app.notifications t"),
     ("audit_log", "to_jsonb(t) FROM app.audit_log t"),
 ];
+
+/// Household tables the export leaves out, because they hold only secrets or
+/// internal state. `check_ins` is exported separately (notes are decrypted).
+pub const NOT_EXPORTED: &[&str] = &[
+    "idempotency_keys",
+    "outbox",
+    "push_subscriptions",
+    "recovery_codes",
+    "sessions",
+];
+
+/// True if the export includes the table `app.{table}`.
+pub fn covers(table: &str) -> bool {
+    table == "check_ins"
+        || TABLES
+            .iter()
+            .any(|(_, select)| select.ends_with(&format!("FROM app.{table} t")))
+}
 
 /// An export.
 #[derive(Debug, Clone)]

@@ -122,6 +122,10 @@ export function Accounts() {
       >
         Connect an account
       </Button>
+      <p className="meta">
+        Connect each bank once. If a connection stops working, select "Sign in to your bank" on it
+        instead of connecting again.
+      </p>
       <Notice>{message}</Notice>
       <Notice tone="problem">{error}</Notice>
       {calmMode ? (

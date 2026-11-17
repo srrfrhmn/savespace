@@ -206,6 +206,10 @@ impl InsightService {
         Self { pool }
     }
 
+    pub(crate) const fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Runs the pipeline for one household (§7.2). `month` comes from the
     /// budget, so the numbers match the Budget page.
     ///

@@ -338,6 +338,7 @@ export function Settings() {
           <Link to="/help">Help and support</Link>
           <Link to="/privacy">Privacy notice</Link>
           <Link to="/settings/security">Passkeys and recovery codes</Link>
+          <Link to="/review">Insight review</Link>
         </nav>
       </section>
 

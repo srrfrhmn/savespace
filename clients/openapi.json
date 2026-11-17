@@ -773,6 +773,47 @@
         }
       }
     },
+    "/insights/review": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Lists the insights made in a window with their verdicts, and the\ncorrectness rate (design doc §16, Phase 1 exit).",
+        "operationId": "get_review",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Days back from now, 1 to 90. The default is 28.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/insights/{id}/feedback": {
       "post": {
         "tags": [
@@ -811,6 +852,48 @@
               }
             }
           },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/insights/{id}/review": {
+      "put": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Marks an insight correct or wrong in the review, or clears the review.",
+        "operationId": "set_review",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The insight ID (`ins_…`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
           "4XX": {
             "content": {
               "application/json": {
@@ -2844,6 +2927,133 @@
           }
         }
       },
+      "Review": {
+        "type": "object",
+        "description": "The correctness review.",
+        "required": [
+          "summary",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewItem"
+            },
+            "description": "Every insight in the window, newest first."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ReviewSummary",
+            "description": "The counts."
+          }
+        }
+      },
+      "ReviewItem": {
+        "type": "object",
+        "description": "One insight in the correctness review.",
+        "required": [
+          "id",
+          "rule_id",
+          "kind",
+          "text",
+          "facts",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was made (RFC 3339)."
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightFact"
+            },
+            "description": "The facts the text uses."
+          },
+          "id": {
+            "type": "string",
+            "description": "The insight ID (`ins_…`)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "The kind."
+          },
+          "rule_id": {
+            "type": "string",
+            "description": "The rule."
+          },
+          "status": {
+            "type": "string",
+            "description": "`open`, `expired`, `dismissed`, or `wrong`."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text."
+          },
+          "verdict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`correct`, `wrong`, or null if not reviewed."
+          },
+          "verdict_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`review`, or `feedback` for \"This is wrong\" in the app."
+          }
+        }
+      },
+      "ReviewSummary": {
+        "type": "object",
+        "description": "The counts of a review.",
+        "required": [
+          "total",
+          "correct",
+          "wrong",
+          "target_bp"
+        ],
+        "properties": {
+          "correct": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Marked correct.",
+            "minimum": 0
+          },
+          "rate_bp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Correct out of correct plus wrong, in basis points, rounded down. Null\nbefore the first verdict.",
+            "minimum": 0
+          },
+          "target_bp": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The Phase 1 target: 9950 (99.5%).",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Insights in the window.",
+            "minimum": 0
+          },
+          "wrong": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Marked wrong (on this page or with \"This is wrong\").",
+            "minimum": 0
+          }
+        }
+      },
       "Rule": {
         "type": "object",
         "description": "A categorization rule.",
@@ -2948,6 +3158,20 @@
               "null"
             ],
             "description": "Carry what is left into the next month. Fixed and flexible only."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetReviewRequest": {
+        "type": "object",
+        "description": "A review verdict.",
+        "properties": {
+          "verdict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`correct`, `wrong`, or null to clear the review."
           }
         },
         "additionalProperties": false

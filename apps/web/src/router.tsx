@@ -14,6 +14,7 @@ import { Home, Security } from "./screens/home";
 import { Deleted, Help, Privacy } from "./screens/info";
 import { Recurring } from "./screens/recurring";
 import { ReflectionScreen } from "./screens/reflection";
+import { ReviewScreen } from "./screens/review";
 import { Rules } from "./screens/rules";
 import { Settings } from "./screens/settings";
 import { Transactions } from "./screens/transactions";
@@ -95,6 +96,13 @@ const rulesRoute = createRoute({
   component: Rules,
 });
 
+const reviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/review",
+  beforeLoad: requireSession,
+  component: ReviewScreen,
+});
+
 const securityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/security",
@@ -155,6 +163,7 @@ const routeTree = rootRoute.addChildren([
   budgetRoute,
   recurringRoute,
   reflectionRoute,
+  reviewRoute,
   securityRoute,
   settingsRoute,
   helpRoute,

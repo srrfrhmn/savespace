@@ -38,6 +38,14 @@ impl From<SyncError> for ApiError {
     fn from(e: SyncError) -> Self {
         match e {
             SyncError::NotFound => Self::not_found(),
+            SyncError::AlreadyConnected(name) => Self::new(
+                StatusCode::CONFLICT,
+                ErrorType::InvalidRequestError,
+                "already_connected",
+                format!(
+                    "{name} is already connected. To fix a connection, select \"Sign in to your bank\" on Accounts."
+                ),
+            ),
             SyncError::Aggregator(a) if a.is_transient() => {
                 tracing::warn!(error = %a, "aggregator unavailable");
                 Self::new(

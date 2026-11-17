@@ -750,6 +750,7 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `PATCH` | `/v1/me` | Change display settings (calm mode). |
 | `GET` | `/v1/insights` | List current insights for a view (home, or one transaction with `transaction_id`). Also `GET /v1/insights/mutes` and `DELETE /v1/insights/mutes/{rule_id}`. |
 | `POST` | `/v1/insights/{id}/feedback` | Send "wrong" or "not helpful". |
+| `GET` | `/v1/insights/review` | The owner's correctness review: every insight in a window (`days`, default 28) with its verdict, and the rate. Also `PUT /v1/insights/{id}/review`. |
 | `POST` | `/v1/check_ins` | Record a check-in. Also `GET /v1/check_ins`. |
 | `GET` | `/v1/reflections/{week}` | Get the weekly reflection for the week that contains a date (`YYYY-MM-DD`). |
 | `POST` | `/v1/exports` | Download a data export (zip of JSON and CSV). Step-up authentication required. |
@@ -986,6 +987,13 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 | **2. iOS** | Swift app. Push. Goals. If-then plans. Move to the target infrastructure (Section 8.7). Private beta (≤ 500 people), then public launch. | SLOs met for 4 weeks. Pen test findings fixed. Crash-free sessions ≥ 99.8%. SOC 2 Type I. |
 | **3. Android + households** | Android app. Shared households. MX failover. | SOC 2 Type II. Household RLS tests pass. |
 | **4. Forecast + BaaS evaluation** | Cash-flow forecast. Evaluate a partner bank for own accounts. | Go/no-go decision document for BaaS. |
+
+**Phase 1 exit checks (M7).**
+
+- **Correctness review.** The Insight review page (`/review`, linked from Settings) lists every insight made in the window, also those the view policy did not show. The owner marks each one correct or wrong. "This is wrong" in the app counts as wrong until a review overrides it. The rate is correct ÷ (correct + wrong), rounded down; the target is 99.5% (`domain-insights::review::TARGET_BP`).
+- **End-to-end tests.** `e2e/` runs one Playwright journey against the Plaid sandbox: setup with a virtual passkey, connect, sync, transactions, budget, recurring, check-in, reflection, review, settings, export, and deletion. Every screen gets an axe check (WCAG 2.2 AA, light and dark) and a 375 px width check. It runs locally and in the manual `e2e` workflow, because sandbox keys stay out of pull request CI.
+- **Restore drill.** Done on 2026-11-17 (`infra/README.md`, Backups and restore).
+- **Plaid Trial.** The Trial plan allows 10 production Items in total. Removing an Item does not give one back, and linking a bank twice counts twice. The API refuses a second connection to the same institution (`409 already_connected`) and removes the new Item at Plaid, so transactions never count twice. A broken connection is fixed with update mode ("Sign in to your bank").
 
 **BaaS readiness.** Phase 1 decisions keep the BaaS option open: money as integer minor units, append-only raw data, an outbox, and an audit log. A BaaS phase adds a double-entry ledger, KYC/AML, and partner bank controls. It is a separate design.
 

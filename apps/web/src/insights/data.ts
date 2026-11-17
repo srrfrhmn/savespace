@@ -59,3 +59,51 @@ export async function saveCheckIn(score: number, note: string): Promise<CheckIn>
   const trimmed = note.trim();
   return ok(await api.POST("/check_ins", { body: trimmed ? { score, note: trimmed } : { score } }));
 }
+
+export type Review = Schemas["Review"];
+export type ReviewItem = Schemas["ReviewItem"];
+export type Verdict = "correct" | "wrong";
+
+export function reviewQuery(days: number) {
+  return queryOptions({
+    queryKey: ["insights", "review", days],
+    queryFn: async () => ok(await api.GET("/insights/review", { params: { query: { days } } })),
+  });
+}
+
+export async function setReview(id: string, verdict: Verdict | null): Promise<void> {
+  ok(await api.PUT("/insights/{id}/review", { params: { path: { id } }, body: { verdict } }));
+}
+
+/** The review counts after one verdict changes, for an optimistic update. */
+export function withVerdict(review: Review, id: string, verdict: Verdict | null): Review {
+  const data = review.data.map((i) => {
+    if (i.id !== id) {
+      return i;
+    }
+    if (verdict) {
+      return { ...i, verdict, verdict_source: "review" };
+    }
+    // Without a review, "This is wrong" in the app still counts.
+    return i.status === "wrong"
+      ? { ...i, verdict: "wrong", verdict_source: "feedback" }
+      : { ...i, verdict: null, verdict_source: null };
+  });
+  const correct = data.filter((i) => i.verdict === "correct").length;
+  const wrong = data.filter((i) => i.verdict === "wrong").length;
+  const reviewed = correct + wrong;
+  return {
+    data,
+    summary: {
+      ...review.summary,
+      correct,
+      wrong,
+      rate_bp: reviewed === 0 ? null : Math.floor((correct * 10000) / reviewed),
+    },
+  };
+}
+
+/** "99.50%" from basis points, rounded down. */
+export function percent(bp: number): string {
+  return `${(Math.floor(bp) / 100).toFixed(2)}%`;
+}
