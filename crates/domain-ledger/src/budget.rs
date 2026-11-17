@@ -431,8 +431,12 @@ async fn calm(
     next_month: Day,
     categories: &[CategoryBudget],
 ) -> Result<Option<Calm>> {
+    // Cash: the lower of available and current for each account (least()
+    // skips NULL). Many banks put overdraft protection into "available", and
+    // that is not the person's money; pending payments lower "available".
+    // Same rule as domain-insights::facts.
     let cash: Option<i64> = sqlx::query_scalar(
-        "SELECT sum(coalesce(available_minor, current_minor))::bigint FROM app.accounts \
+        "SELECT sum(least(available_minor, current_minor))::bigint FROM app.accounts \
          WHERE type = 'depository' AND currency = $1",
     )
     .bind(currency.code())

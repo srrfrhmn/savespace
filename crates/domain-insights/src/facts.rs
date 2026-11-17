@@ -296,8 +296,12 @@ pub async fn build(
     let month_end = month_start.plus_months(1).plus_days(-1);
     let (upcoming, bills) = expected_bills(conn, currency, today, month_end).await?;
 
+    // Cash: the lower of available and current for each account (least()
+    // skips NULL). Many banks put overdraft protection into "available", and
+    // that is not the person's money; pending payments lower "available".
+    // Same rule as domain-ledger::budget.
     let cash: Option<i64> = sqlx::query_scalar(
-        "SELECT sum(coalesce(available_minor, current_minor))::bigint FROM app.accounts \
+        "SELECT sum(least(available_minor, current_minor))::bigint FROM app.accounts \
          WHERE type = 'depository' AND currency = $1",
     )
     .bind(currency.code())
