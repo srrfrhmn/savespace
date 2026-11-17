@@ -140,8 +140,9 @@ async fn generates_dedupes_and_takes_feedback(admin: PgPool) {
     let out = svc.generate(h.household, None).await.unwrap();
     assert_eq!((out.created, out.refreshed), (0, 1));
 
-    // Cash drops below the bill: a concern appears.
-    sqlx::query("UPDATE app.accounts SET current_minor = 100000")
+    // Cash drops below the bill: a concern appears. An overdraft limit in
+    // "available" does not hide it.
+    sqlx::query("UPDATE app.accounts SET current_minor = 100000, available_minor = 600000")
         .execute(&admin)
         .await
         .unwrap();

@@ -333,4 +333,28 @@ async fn calm_state_for_the_current_month(admin: PgPool) {
     assert_eq!(calm.until, this_month.last_of_month());
     assert_eq!(state(80_000).await.state, "tight");
     assert_eq!(state(40_000).await.state, "needs_attention");
+
+    // "Available" with a $500 overdraft is not cash; a pending payment that
+    // lowers "available" is.
+    let with_available = |current: i64, available: Option<i64>| {
+        let svc = svc.clone();
+        let admin = admin.clone();
+        async move {
+            sqlx::query("UPDATE app.accounts SET current_minor = $1, available_minor = $2")
+                .bind(current)
+                .bind(available)
+                .execute(&admin)
+                .await
+                .unwrap();
+            svc.budget_month(h.household, this_month)
+                .await
+                .unwrap()
+                .calm
+                .unwrap()
+                .cash
+        }
+    };
+    assert_eq!(with_available(341_973, Some(391_973)).await, 341_973);
+    assert_eq!(with_available(341_973, Some(300_000)).await, 300_000);
+    assert_eq!(with_available(341_973, None).await, 341_973);
 }
