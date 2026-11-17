@@ -624,3 +624,49 @@ async fn a_concurrent_sync_does_not_overwrite_the_cursor(admin: PgPool) {
         0
     );
 }
+
+/// The same bank twice: the new item is removed at the provider and nothing
+/// is stored, so transactions do not count twice.
+#[sqlx::test(migrator = "platform_db::MIGRATOR")]
+#[ignore = "needs DATABASE_URL"]
+async fn same_institution_twice_is_refused(admin: PgPool) {
+    let pool = runtime_pool(&admin).await;
+    let (household, user) = household(&admin).await;
+    let fake = Arc::new(Fake::default());
+    let svc = service(&pool, fake.clone());
+
+    svc.create_connection(household, user, "pub1", Some(("ins_1", "First Bank")), None)
+        .await
+        .unwrap();
+    let err = svc
+        .create_connection(household, user, "pub2", Some(("ins_1", "First Bank")), None)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&err, domain_sync::SyncError::AlreadyConnected(name) if name == "First Bank"),
+        "{err:?}"
+    );
+    assert_eq!(*fake.removed.lock().unwrap(), ["access-pub2"]);
+    assert_eq!(
+        count(&admin, "SELECT count(*) FROM app.connections").await,
+        1
+    );
+
+    // Another bank, or no institution in the Link metadata, still connects.
+    svc.create_connection(
+        household,
+        user,
+        "pub3",
+        Some(("ins_2", "Second Bank")),
+        None,
+    )
+    .await
+    .unwrap();
+    svc.create_connection(household, user, "pub4", None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        count(&admin, "SELECT count(*) FROM app.connections").await,
+        3
+    );
+}

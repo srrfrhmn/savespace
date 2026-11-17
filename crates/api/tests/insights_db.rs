@@ -246,3 +246,120 @@ async fn insights_reflection_and_check_ins(admin: PgPool) {
     let (_, list) = send(&app, request(Method::GET, "/v1/check_ins", &cookie, None)).await;
     assert_eq!(list["data"][0]["score"], 3);
 }
+
+async fn insert_insight(admin: &PgPool, household: Uuid, rule: &str, age_days: i32) -> String {
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO app.insights (household_id, rule_id, rule_version, kind, scope, text, \
+           facts, confidence_bp, relevance_bp, created_at) \
+         VALUES ($1, $2, 1, 'reassurance', 'month:2026-11', 'Your spending is on track.', \
+           '[]', 9000, 5000, now() - make_interval(days => $3)) RETURNING id",
+    )
+    .bind(household)
+    .bind(rule)
+    .bind(age_days)
+    .fetch_one(admin)
+    .await
+    .unwrap();
+    format!("ins_{}", id.simple())
+}
+
+#[sqlx::test(migrator = "platform_db::MIGRATOR")]
+#[ignore = "needs DATABASE_URL"]
+async fn correctness_review(admin: PgPool) {
+    let household = seed(&admin).await;
+    let a = insert_insight(&admin, household, "budget.month_on_track", 1).await;
+    let b = insert_insight(&admin, household, "spend.week_below_usual", 2).await;
+    insert_insight(&admin, household, "old", 40).await;
+    let other = Uuid::now_v7();
+    sqlx::query("INSERT INTO app.households (id) VALUES ($1)")
+        .bind(other)
+        .execute(&admin)
+        .await
+        .unwrap();
+    let foreign = insert_insight(&admin, other, "budget.month_on_track", 1).await;
+
+    let app = app(&admin).await;
+    let (status, _) = send(&app, request(Method::GET, "/v1/insights/review", "", None)).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let cookie = sign_in(&app).await;
+
+    let review = |days: &str| {
+        request(
+            Method::GET,
+            &format!("/v1/insights/review{days}"),
+            &cookie,
+            None,
+        )
+    };
+    let (status, r) = send(&app, review("")).await;
+    assert_eq!(status, StatusCode::OK, "{r}");
+    assert_eq!(
+        r["summary"]["total"], 2,
+        "the 40-day-old and the other household's are left out"
+    );
+    assert_eq!(r["summary"]["rate_bp"], Value::Null);
+    assert_eq!(r["summary"]["target_bp"], 9950);
+    assert_eq!(r["data"][0]["id"], a.as_str(), "newest first");
+    let (_, r) = send(&app, review("?days=90")).await;
+    assert_eq!(r["summary"]["total"], 3);
+    let (status, bad) = send(&app, review("?days=0")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad["error"]["code"], "days_invalid");
+
+    let put = |id: &str, verdict: Value| {
+        request(
+            Method::PUT,
+            &format!("/v1/insights/{id}/review"),
+            &cookie,
+            Some(&json!({ "verdict": verdict })),
+        )
+    };
+    let (status, _) = send(&app, put(&a, json!("correct"))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) = send(&app, put(&foreign, json!("correct"))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "another household's insight");
+    let (status, bad) = send(&app, put(&a, json!("maybe"))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(bad["error"]["code"], "verdict_invalid");
+
+    // "This is wrong" in the app counts as wrong.
+    let (status, _) = send(
+        &app,
+        request(
+            Method::POST,
+            &format!("/v1/insights/{b}/feedback"),
+            &cookie,
+            Some(&json!({ "kind": "wrong", "reason": "amount" })),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, r) = send(&app, review("")).await;
+    assert_eq!(
+        (
+            &r["summary"]["correct"],
+            &r["summary"]["wrong"],
+            &r["summary"]["rate_bp"]
+        ),
+        (&json!(1), &json!(1), &json!(5000))
+    );
+    assert_eq!(r["data"][1]["verdict_source"], "feedback");
+    assert_eq!(r["data"][1]["status"], "wrong");
+
+    // A review overrides the feedback; null clears a review.
+    send(&app, put(&b, json!("correct"))).await;
+    send(&app, put(&a, Value::Null)).await;
+    let (_, r) = send(&app, review("")).await;
+    assert_eq!(r["summary"]["correct"], 1);
+    assert_eq!(r["summary"]["wrong"], 0);
+    assert_eq!(r["summary"]["rate_bp"], 10_000);
+    assert_eq!(r["data"][0]["verdict"], Value::Null);
+    assert_eq!(r["data"][1]["verdict_source"], "review");
+    let foreign_rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM app.insight_reviews WHERE household_id = $1")
+            .bind(other)
+            .fetch_one(&admin)
+            .await
+            .unwrap();
+    assert_eq!(foreign_rows, 0);
+}

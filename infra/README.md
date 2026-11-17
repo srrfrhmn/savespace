@@ -117,6 +117,19 @@ The next deploy sends traffic to the new revision again. Migrations do not roll 
 - **Web Push:** the VAPID key is derived from `token-kek` (D13), and the worker uses `SAVESPACE_PUBLIC_ORIGIN` as the VAPID contact. Rotating `token-kek` also changes the VAPID key: browsers must turn notifications on again.
 - **`token-kek`:** do not rotate it yet. Rotation needs a re-wrap of every household key (`app.households.dek_wrapped`). Losing it makes all stored Plaid tokens unreadable. Then remove and connect the banks again.
 
+### Go live: Plaid production (Trial plan)
+
+The Trial plan is free: 10 production Items in total, Transactions included. Removing an Item does not give one back, and linking the same bank twice uses two.
+
+1. The owner applies for the Trial plan in the Plaid dashboard and gets the production secret. The client ID stays the same.
+2. On the live site, remove the sandbox connections (Accounts, **Remove**). Sandbox tokens do not work against production.
+3. `printf '%s' "$PLAID_PRODUCTION_SECRET" | infra/scripts/set-secret.sh plaid-secret`
+4. Set `plaid_env = "production"` in `terraform.tfvars`. `terraform plan` shows one in-place change each for the api service and the worker job (`PLAID_ENV`). Apply it after review. This also starts new instances, which read the new secret.
+5. Connect each bank once. The API refuses the same institution twice (`already_connected`). A broken connection is fixed with **Sign in to your bank**, which does not use an Item.
+6. Check: worker logs show `sync finished`; a webhook arrives within a day (`SELECT count(*) FROM app.webhook_events`).
+
+OAuth banks (Chase, Bank of America, Wells Fargo, and others) open in a pop-up on desktop and mobile browsers, so no redirect URI is needed. The webhook URL comes from the link token, so the dashboard needs no webhook setting.
+
 ## Sign-in recovery
 
 - **Lost a device, have another passkey:** sign in with the other passkey. In **Security**, remove the lost passkey.
@@ -140,14 +153,27 @@ The age private key is at `~/.savespace/backup-age-key.txt` on the owner's machi
 Restore (owner credentials; the backup service account cannot read backups):
 
 ```sh
-gcloud storage ls gs://<project>-db-backups/savespace/
+gcloud storage ls --recursive gs://<project>-db-backups/savespace/
 gcloud storage cp gs://<project>-db-backups/savespace/YYYY/MM/<file>.dump.age .
 age -d -i ~/.savespace/backup-age-key.txt <file>.dump.age > restore.dump
-pg_restore --no-owner --dbname "<target url>" restore.dump
-rm restore.dump
+pg_restore --no-owner --exit-on-error --dbname "<target url>" restore.dump
+rm restore.dump <file>.dump.age
 ```
 
-Test a restore into a Neon branch once per quarter.
+The target needs the roles the dump grants to: `savespace_owner` and `savespace_runtime`. A Neon branch has them. On a plain PostgreSQL 18, create them first (`NOLOGIN`), and also `neon_superuser` and `cloud_admin`, which Neon's default privileges name.
+
+Check a restore:
+
+1. `SELECT count(*), bool_and(success), max(version) FROM _sqlx_migrations` matches the release.
+2. Every `app` table with `household_id` has row level security on, except `outbox` (a system queue, like `jobs`).
+3. As `savespace_runtime`: no `app.household_id` sees 0 users; the right one sees its rows; another one sees 0.
+4. `worker migrate` brings it to the current schema.
+
+Test a restore once per quarter. Log:
+
+| Date | Backup | Target | Result |
+| --- | --- | --- | --- |
+| 2026-11-17 | `20261116T193433Z` (113 KB) | Local PostgreSQL 18 | Restored with no errors. 7 migrations, all applied. RLS checks pass. Migrated forward to 9. Decrypted files deleted. |
 
 ## Rules
 

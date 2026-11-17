@@ -1,0 +1,100 @@
+# End-to-end tests against the Plaid sandbox (design doc §14.3).
+# Manual only: sandbox keys stay out of pull request CI. Needs the repository
+# secrets PLAID_SANDBOX_CLIENT_ID and PLAID_SANDBOX_SECRET (sandbox keys only).
+name: e2e
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  e2e:
+    name: playwright (sandbox, axe)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: savespace
+          POSTGRES_PASSWORD: savespace
+          POSTGRES_DB: savespace
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U savespace"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ADMIN_URL: postgres://savespace:savespace@localhost:5432/savespace
+      PLAID_ENV: sandbox
+      PLAID_CLIENT_ID: ${{ secrets.PLAID_SANDBOX_CLIENT_ID }}
+      PLAID_SECRET: ${{ secrets.PLAID_SANDBOX_SECRET }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Sandbox keys are set
+        run: test -n "$PLAID_CLIENT_ID" && test -n "$PLAID_SECRET"
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: wasm-pack
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm wasm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @savespace/web build
+      - run: cargo build --locked -p api -p worker
+      - name: Migrate, and add a login for the runtime role
+        env:
+          DATABASE_URL: ${{ env.ADMIN_URL }}
+        run: |
+          ./target/debug/worker migrate
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE savespace_app_e2e LOGIN PASSWORD 'e2e' IN ROLE savespace_runtime"
+      - name: Start the API and the worker
+        env:
+          DATABASE_URL: postgres://savespace_app_e2e:e2e@localhost:5432/savespace
+          SAVESPACE_API_ADDR: 127.0.0.1:8080
+          SAVESPACE_PUBLIC_ORIGIN: http://localhost:8080
+          SAVESPACE_OWNER_SETUP_CODE: e2e-setup-code
+          SAVESPACE_WEB_DIR: apps/web/dist
+          SAVESPACE_LOG_FORMAT: json
+          RUST_LOG: info,tower_http=warn
+        run: |
+          export SAVESPACE_TOKEN_KEK="$(openssl rand -base64 32)"
+          nohup ./target/debug/api > api.log 2>&1 &
+          nohup ./target/debug/worker run > worker.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/health && exit 0; sleep 1; done
+          cat api.log
+          exit 1
+      - run: pnpm --filter @savespace/e2e exec playwright install --with-deps chromium
+      - name: Playwright
+        env:
+          E2E_SETUP_CODE: e2e-setup-code
+        run: pnpm --filter @savespace/e2e e2e
+      - name: Upload the report and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            api.log
+            worker.log
+          retention-days: 7

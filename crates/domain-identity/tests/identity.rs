@@ -342,3 +342,26 @@ async fn passkey_delete_rules(admin: PgPool) {
         Err(IdentityError::LastPasskey)
     ));
 }
+
+/// Every table with household data is in the export or listed as left out
+/// (design doc §12.5). A new table must choose.
+#[sqlx::test(migrator = "platform_db::MIGRATOR")]
+#[ignore = "needs DATABASE_URL"]
+async fn export_covers_every_household_table(admin: PgPool) {
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT table_name::text FROM information_schema.columns \
+         WHERE table_schema = 'app' AND column_name = 'household_id' ORDER BY 1",
+    )
+    .fetch_all(&admin)
+    .await
+    .unwrap();
+    assert!(tables.iter().any(|t| t == "insight_reviews"));
+    let missing: Vec<&String> = tables
+        .iter()
+        .filter(|t| {
+            !domain_identity::export::covers(t)
+                && !domain_identity::export::NOT_EXPORTED.contains(&t.as_str())
+        })
+        .collect();
+    assert!(missing.is_empty(), "not in the export: {missing:?}");
+}

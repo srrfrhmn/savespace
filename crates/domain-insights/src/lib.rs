@@ -20,6 +20,7 @@ pub mod facts;
 pub mod model;
 pub mod policy;
 pub mod reflection;
+pub mod review;
 pub mod rules;
 pub mod service;
 pub mod validator;

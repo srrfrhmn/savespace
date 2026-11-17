@@ -3,7 +3,7 @@
   --surface: #ffffff;
   --text: #1f2a2e;
   --muted: #5f6b6e;
-  --accent: #3f7d6e;
+  --accent: #3a7466;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
   color: var(--text);
@@ -395,7 +395,8 @@ fieldset.confirm legend {
   padding: 0 0 0.75rem;
 }
 
-.insight-list {
+.insight-list,
+.review-list {
   list-style: none;
   padding: 0;
   margin: 1.5rem 0;
@@ -444,7 +445,8 @@ fieldset.confirm legend {
 }
 
 fieldset.reasons,
-fieldset.scale {
+fieldset.scale,
+fieldset.verdict {
   border: 0;
   margin: 0;
   padding: 0;
@@ -453,7 +455,8 @@ fieldset.scale {
 }
 
 fieldset.reasons legend,
-fieldset.scale legend {
+fieldset.scale legend,
+fieldset.verdict legend {
   font-weight: 600;
   margin-bottom: 0.5rem;
 }
@@ -484,4 +487,14 @@ fieldset.scale legend {
 .card > .check,
 .card > fieldset.scale {
   margin: 1rem 0;
+}
+
+fieldset.verdict {
+  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, max-content));
+  column-gap: 1.5rem;
+}
+
+fieldset.verdict legend {
+  grid-column: 1 / -1;
 }

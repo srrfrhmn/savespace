@@ -372,6 +372,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insights/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists the insights made in a window with their verdicts, and the
+         *     correctness rate (design doc §16, Phase 1 exit).
+         */
+        get: operations["get_review"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/insights/{id}/feedback": {
         parameters: {
             query?: never;
@@ -383,6 +403,23 @@ export interface paths {
         put?: never;
         /** Sends feedback. The insight is hidden at once. */
         post: operations["send_feedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insights/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Marks an insight correct or wrong in the review, or clears the review. */
+        put: operations["set_review"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1222,6 +1259,66 @@ export interface components {
             /** @description `positive`, `neutral`, or `higher`. The last card is never `higher`. */
             tone: string;
         };
+        /** @description The correctness review. */
+        Review: {
+            /** @description Every insight in the window, newest first. */
+            data: components["schemas"]["ReviewItem"][];
+            /** @description The counts. */
+            summary: components["schemas"]["ReviewSummary"];
+        };
+        /** @description One insight in the correctness review. */
+        ReviewItem: {
+            /**
+             * Format: date-time
+             * @description When it was made (RFC 3339).
+             */
+            created_at: string;
+            /** @description The facts the text uses. */
+            facts: components["schemas"]["InsightFact"][];
+            /** @description The insight ID (`ins_…`). */
+            id: string;
+            /** @description The kind. */
+            kind: string;
+            /** @description The rule. */
+            rule_id: string;
+            /** @description `open`, `expired`, `dismissed`, or `wrong`. */
+            status: string;
+            /** @description The text. */
+            text: string;
+            /** @description `correct`, `wrong`, or null if not reviewed. */
+            verdict?: string | null;
+            /** @description `review`, or `feedback` for "This is wrong" in the app. */
+            verdict_source?: string | null;
+        };
+        /** @description The counts of a review. */
+        ReviewSummary: {
+            /**
+             * Format: int32
+             * @description Marked correct.
+             */
+            correct: number;
+            /**
+             * Format: int32
+             * @description Correct out of correct plus wrong, in basis points, rounded down. Null
+             *     before the first verdict.
+             */
+            rate_bp?: number | null;
+            /**
+             * Format: int32
+             * @description The Phase 1 target: 9950 (99.5%).
+             */
+            target_bp: number;
+            /**
+             * Format: int32
+             * @description Insights in the window.
+             */
+            total: number;
+            /**
+             * Format: int32
+             * @description Marked wrong (on this page or with "This is wrong").
+             */
+            wrong: number;
+        };
         /** @description A categorization rule. */
         Rule: {
             /** @description The category it sets (`cat_…`). */
@@ -1271,6 +1368,11 @@ export interface components {
             plan_minor?: number | null;
             /** @description Carry what is left into the next month. Fixed and flexible only. */
             rollover?: boolean | null;
+        };
+        /** @description A review verdict. */
+        SetReviewRequest: {
+            /** @description `correct`, `wrong`, or null to clear the review. */
+            verdict?: string | null;
         };
         /** @description Finish owner setup. */
         SetupFinishRequest: {
@@ -2091,6 +2193,36 @@ export interface operations {
             };
         };
     };
+    get_review: {
+        parameters: {
+            query?: {
+                /** @description Days back from now, 1 to 90. The default is 28. */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Review"];
+                };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     send_feedback: {
         parameters: {
             query?: never;
@@ -2114,6 +2246,38 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["FeedbackResult"];
                 };
+            };
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The insight ID (`ins_…`). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetReviewRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             "4XX": {
                 headers: {

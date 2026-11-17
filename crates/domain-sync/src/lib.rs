@@ -60,6 +60,11 @@ pub enum SyncError {
     /// Another sync changed the cursor first. Retry.
     #[error("another sync ran at the same time")]
     Concurrent,
+    /// The institution is already connected. The new item was removed at the
+    /// provider, so its accounts do not count twice. Holds the institution
+    /// name.
+    #[error("the institution is already connected")]
+    AlreadyConnected(String),
     /// An aggregator error.
     #[error(transparent)]
     Aggregator(#[from] AggregatorError),
@@ -233,6 +238,25 @@ impl SyncService {
     ) -> Result<Connection> {
         let item = self.aggregator.exchange_public_token(public_token).await?;
         let mut tx = platform_db::tenant_tx(&self.pool, household_id).await?;
+        if let Some((institution_id, name)) = institution {
+            let existing: Option<Option<String>> = sqlx::query_scalar(
+                "SELECT institution_name FROM app.connections WHERE institution_id = $1 LIMIT 1",
+            )
+            .bind(institution_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            if let Some(existing) = existing {
+                drop(tx);
+                // Linking the same bank twice would count every transaction
+                // twice. The person repairs a connection with update mode.
+                if let Err(e) = self.aggregator.remove_item(&item.access_token).await {
+                    tracing::warn!(error = %e, "could not remove a duplicate item");
+                }
+                return Err(SyncError::AlreadyConnected(
+                    existing.unwrap_or_else(|| name.to_owned()),
+                ));
+            }
+        }
         let dek = self.keyring.dek(&mut tx, household_id).await?;
         let sealed = dek.seal(
             Purpose::AccessToken,

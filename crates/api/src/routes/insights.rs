@@ -3,6 +3,7 @@
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use domain_insights::review;
 use domain_insights::service::{Feedback, Reason, View};
 use domain_insights::{InsightError, StoredInsight};
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(send_feedback))
         .routes(routes!(list_mutes))
         .routes(routes!(unmute))
+        .routes(routes!(get_review))
+        .routes(routes!(set_review))
         .routes(routes!(get_reflection))
         .routes(routes!(create_check_in, list_check_ins))
 }
@@ -218,6 +221,153 @@ async fn unmute(
     state
         .insights
         .unmute(auth.session.household_id, &rule_id)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// One insight in the correctness review.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ReviewItem {
+    /// The insight ID (`ins_…`).
+    pub id: String,
+    /// The rule.
+    pub rule_id: String,
+    /// The kind.
+    pub kind: String,
+    /// The text.
+    pub text: String,
+    /// The facts the text uses.
+    pub facts: Vec<InsightFact>,
+    /// `open`, `expired`, `dismissed`, or `wrong`.
+    pub status: String,
+    /// When it was made (RFC 3339).
+    #[schema(value_type = String, format = DateTime)]
+    pub created_at: jiff::Timestamp,
+    /// `correct`, `wrong`, or null if not reviewed.
+    pub verdict: Option<String>,
+    /// `review`, or `feedback` for "This is wrong" in the app.
+    pub verdict_source: Option<String>,
+}
+
+/// The counts of a review.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ReviewSummary {
+    /// Insights in the window.
+    pub total: u32,
+    /// Marked correct.
+    pub correct: u32,
+    /// Marked wrong (on this page or with "This is wrong").
+    pub wrong: u32,
+    /// Correct out of correct plus wrong, in basis points, rounded down. Null
+    /// before the first verdict.
+    pub rate_bp: Option<u32>,
+    /// The Phase 1 target: 9950 (99.5%).
+    pub target_bp: u32,
+}
+
+/// The correctness review.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct Review {
+    /// The counts.
+    pub summary: ReviewSummary,
+    /// Every insight in the window, newest first.
+    pub data: Vec<ReviewItem>,
+}
+
+/// The review window.
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ReviewQuery {
+    /// Days back from now, 1 to 90. The default is 28.
+    pub days: Option<i64>,
+}
+
+/// Lists the insights made in a window with their verdicts, and the
+/// correctness rate (design doc §16, Phase 1 exit).
+#[utoipa::path(get, path = "/insights/review", tag = "insights",
+    params(ReviewQuery),
+    responses((status = 200, body = Review), (status = "4XX", body = ErrorBody)))]
+async fn get_review(
+    State(state): State<AppState>,
+    auth: Auth,
+    Query(query): Query<ReviewQuery>,
+) -> Result<Json<Review>, ApiError> {
+    let days = query.days.unwrap_or(28);
+    if !(1..=90).contains(&days) {
+        return Err(ApiError::invalid("days_invalid", "days must be 1 to 90.").param("days"));
+    }
+    let since = jiff::Timestamp::now()
+        .checked_sub(jiff::SignedDuration::from_hours(days * 24))
+        .map_err(|_| ApiError::internal())?;
+    let items = state
+        .insights
+        .review(auth.session.household_id, since)
+        .await?;
+    let s = review::Summary::of(&items);
+    Ok(Json(Review {
+        summary: ReviewSummary {
+            total: s.total,
+            correct: s.correct,
+            wrong: s.wrong,
+            rate_bp: s.rate_bp,
+            target_bp: review::TARGET_BP,
+        },
+        data: items
+            .into_iter()
+            .map(|i| ReviewItem {
+                id: ids::encode(ids::INSIGHT, i.id),
+                rule_id: i.rule_id,
+                kind: i.kind.as_str().to_owned(),
+                text: i.text,
+                facts: serde_json::from_value(i.facts).unwrap_or_default(),
+                status: i.status,
+                created_at: i.created_at,
+                verdict: i.verdict.map(|(v, _)| v.as_str().to_owned()),
+                verdict_source: i.verdict.map(|(_, src)| {
+                    match src {
+                        review::Source::Review => "review",
+                        review::Source::Feedback => "feedback",
+                    }
+                    .to_owned()
+                }),
+            })
+            .collect(),
+    }))
+}
+
+/// A review verdict.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetReviewRequest {
+    /// `correct`, `wrong`, or null to clear the review.
+    pub verdict: Option<String>,
+}
+
+/// Marks an insight correct or wrong in the review, or clears the review.
+#[utoipa::path(put, path = "/insights/{id}/review", tag = "insights",
+    params(("id" = String, Path, description = "The insight ID (`ins_…`).")),
+    request_body = SetReviewRequest,
+    responses((status = 204), (status = "4XX", body = ErrorBody)))]
+async fn set_review(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<String>,
+    Json(body): Json<SetReviewRequest>,
+) -> Result<StatusCode, ApiError> {
+    let id = ids::decode(ids::INSIGHT, &id).ok_or_else(ApiError::not_found)?;
+    let verdict = match body.verdict.as_deref() {
+        None => None,
+        Some(v) => Some(review::Verdict::parse(v).ok_or_else(|| {
+            ApiError::invalid(
+                "verdict_invalid",
+                "verdict must be correct, wrong, or null.",
+            )
+            .param("verdict")
+        })?),
+    };
+    state
+        .insights
+        .set_review(auth.session.household_id, id, verdict)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

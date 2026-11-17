@@ -28,3 +28,7 @@ dist/
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
