@@ -15,11 +15,17 @@ if [ -t 0 ]; then
   exit 2
 fi
 
-new=$(gcloud secrets versions add "$name" --project "$project" --data-file=- --format='value(name)')
+# tr: gcloud on Windows (Git Bash) ends lines with CRLF. A stray CR made
+# the new version look different from itself, so it was nearly destroyed.
+new=$(gcloud secrets versions add "$name" --project "$project" --data-file=- --format='value(name)' | tr -d '\r')
 new=${new##*/}
+if [ -z "$new" ]; then
+  echo "set-secret.sh: could not read the new version" >&2
+  exit 1
+fi
 
 for v in $(gcloud secrets versions list "$name" --project "$project" \
-  --filter='state!=DESTROYED' --format='value(name)'); do
+  --filter='state!=DESTROYED' --format='value(name)' | tr -d '\r'); do
   v=${v##*/}
   if [ "$v" != "$new" ]; then
     gcloud secrets versions destroy "$v" --secret "$name" --project "$project" --quiet > /dev/null

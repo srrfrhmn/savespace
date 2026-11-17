@@ -128,6 +128,8 @@ The Trial plan is free for developers in the US and Canada: 10 production Items 
 5. Connect each bank once. The API refuses the same institution twice (`already_connected`). A broken connection is fixed with **Sign in to your bank**, which does not use an Item.
 6. Check: worker logs show `sync finished`; a webhook arrives within a day (`SELECT count(*) FROM app.webhook_events`).
 
+Done on 2026-11-17: Trial plan approved, `plaid-secret` version 2 (production), `PLAID_ENV=production` on the api and the worker.
+
 OAuth banks (Chase, Bank of America, Wells Fargo, and others) open in a pop-up on desktop and mobile browsers, so no redirect URI is needed. The webhook URL comes from the link token, so the dashboard needs no webhook setting.
 
 ## Sign-in recovery
