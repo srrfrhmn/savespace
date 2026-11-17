@@ -25,7 +25,7 @@ let page: Page;
 let problems: string[];
 
 test.beforeAll(async ({ browser }) => {
-  context = await browser.newContext({ acceptDownloads: true });
+  context = await browser.newContext({ acceptDownloads: true, timezoneId: "America/New_York" });
   page = await context.newPage();
   problems = watchProblems(page);
   await addVirtualAuthenticator(context, page);
@@ -50,7 +50,8 @@ test("signed out: sign-in, setup, help, and privacy", async () => {
   await checkScreen("recover");
   await page.goto("/help");
   await expect(page.getByRole("heading", { name: "Help and support" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "988lifeline.org" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "988.ca" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Credit Counselling Canada" })).toBeVisible();
   await checkScreen("help");
   await page.goto("/privacy");
   await expect(page.getByRole("heading", { name: "Privacy notice" })).toBeVisible();
@@ -217,6 +218,22 @@ test("settings and export", async () => {
   await checkScreen("settings");
   await page.getByLabel("Time zone").selectOption("America/Chicago");
   await expect(page.getByText("Saved.")).toBeVisible();
+
+  // The household currency: accounts in another one get a note.
+  await page.getByLabel("Currency").selectOption("CAD");
+  await expect(page.getByLabel("Currency")).toHaveValue("CAD");
+  await page.goto("/accounts");
+  await expect(
+    page.getByText(/Some accounts are in USD, but budgets and insights count CAD/),
+  ).toBeVisible();
+  await checkScreen("accounts (currency note)");
+  await page.goto("/settings");
+  await page.getByLabel("Currency").selectOption("USD");
+  await expect(page.getByLabel("Currency")).toHaveValue("USD");
+  await page.goto("/accounts");
+  await expect(page.getByRole("heading", { name: "Recent transactions" })).toBeVisible();
+  await expect(page.getByText(/Some accounts are in/)).toHaveCount(0);
+  await page.goto("/settings");
 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download my data" }).click();

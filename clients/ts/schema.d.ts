@@ -1075,6 +1075,11 @@ export interface components {
         Me: {
             /** @description Calm mode: hide exact balances until the person taps. */
             calm_mode: boolean;
+            /**
+             * @description The household currency: `USD` or `CAD`. Budgets and insights count
+             *     transactions in this currency.
+             */
+            currency: string;
             /** @description The display name. */
             display_name: string;
             /** @description The household ID (`hh_…`). */
@@ -1502,6 +1507,8 @@ export interface components {
         UpdateMeRequest: {
             /** @description Calm mode: hide exact balances until the person taps. */
             calm_mode?: boolean | null;
+            /** @description The household currency: `USD` or `CAD`. */
+            currency?: string | null;
             /**
              * Format: int32
              * @description Notifications a day, 0 to 5. Concerns always send.

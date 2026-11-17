@@ -643,7 +643,7 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 - **Plans.** A plan applies from its month until a later plan changes it. Fixed and flexible plans are monthly. A non-monthly plan is yearly: 1/12 is set aside each month (`Money::allocate`, exact to the cent), and spending is compared with what was set aside so far this year. Rollover carries `plan − spent` from the month it was turned on, at most 24 months back. Refunds lower spending. A split counts in each part's category. Hidden transactions do not count.
 - **Calm state** (`savespace_core::budget::calm_state`, shared with WASM and UniFFI through a golden file). Cash is the available (or current) balance of checking and savings accounts. Bills are the expected recurring charges from today to the end of the month. `needs_attention` if cash < bills; `tight` if cash < bills + flexible plan left; else `covered`. Calm mode hides the amounts until the person taps. It never hides them for `needs_attention` (§5, Gentle exposure).
 - **Time.** "Today" is the date in the owner's time zone (`users.time_zone`). The server bundles the time zone database, so it does not depend on the container image.
-- **Currency.** One currency per household (`households.currency`, default USD) in Phase 1.
+- **Currency.** One currency per household (`households.currency`) in Phase 1: USD or CAD, the Plaid Trial countries. Setup picks CAD for a Canadian browser time zone, else USD, and Settings can change it. Both have 2 decimals, so plans keep their amounts. Budgets and insights count only accounts in the household currency; the Accounts page says so when an account uses another one.
 
 **Phase 1 implementation notes (M5).**
 
@@ -747,7 +747,7 @@ Source: [`06-transaction-sync.excalidraw`](diagrams/06-transaction-sync.excalidr
 | `GET` | `/v1/budgets/{month}` | Get the budget for a month (`YYYY-MM`), with the calm state for the current month. |
 | `PUT` | `/v1/budgets/{month}/categories/{id}` | Set the plan for a category from that month on, and rollover. |
 | `GET` | `/v1/recurring` | List recurring charges and income. |
-| `PATCH` | `/v1/me` | Change display settings (calm mode). |
+| `PATCH` | `/v1/me` | Change settings: calm mode, time zone, currency (`USD` or `CAD`), and notifications. |
 | `GET` | `/v1/insights` | List current insights for a view (home, or one transaction with `transaction_id`). Also `GET /v1/insights/mutes` and `DELETE /v1/insights/mutes/{rule_id}`. |
 | `POST` | `/v1/insights/{id}/feedback` | Send "wrong" or "not helpful". |
 | `GET` | `/v1/insights/review` | The owner's correctness review: every insight in a window (`days`, default 28) with its verdict, and the rate. Also `PUT /v1/insights/{id}/review`. |
@@ -809,6 +809,7 @@ The worker caches decrypted DEKs in memory for max 5 minutes. Only the `worker` 
 | GLBA Privacy Rule and FTC Safeguards Rule | SaveSpace is a financial institution under GLBA. Written information security program. Named security owner. Annual risk assessment. Breach notification to the FTC when required. |
 | CFPB Personal Financial Data Rights rule (§1033) | Track the rule status. The status changed often since 2024. Legal reviews it each quarter. Design for data minimization and revocable consent so SaveSpace complies with likely outcomes. |
 | CCPA / CPRA and other state privacy laws | Privacy notice. Rights to know, delete, and correct. No sale or share of personal data. |
+| PIPEDA and provincial privacy laws (Canada) | Phase 1 is personal use by the owner, who may live in Canada; data is stored in the US, and the privacy notice says so. Before Canadian users other than the owner: consent and purpose statements under PIPEDA (and Quebec Law 25), a cross-border transfer notice, and breach records. |
 | SOC 2 Type II | Controls from day 1. Type I audit in Phase 2. Type II report by end of Phase 3. |
 | Aggregator requirements | Complete the Plaid security questionnaire. Meet Plaid production access requirements. |
 | Accessibility | WCAG 2.2 AA on all clients. |
@@ -993,6 +994,7 @@ These are optional and private. SaveSpace reports them only in aggregate and de-
 - **Correctness review.** The Insight review page (`/review`, linked from Settings) lists every insight made in the window, also those the view policy did not show. The owner marks each one correct or wrong. "This is wrong" in the app counts as wrong until a review overrides it. The rate is correct ÷ (correct + wrong), rounded down; the target is 99.5% (`domain-insights::review::TARGET_BP`).
 - **End-to-end tests.** `e2e/` runs one Playwright journey against the Plaid sandbox: setup with a virtual passkey, connect, sync, transactions, budget, recurring, check-in, reflection, review, settings, export, and deletion. Every screen gets an axe check (WCAG 2.2 AA, light and dark) and a 375 px width check. It runs locally and in the manual `e2e` workflow, because sandbox keys stay out of pull request CI.
 - **Restore drill.** Done on 2026-11-17 (`infra/README.md`, Backups and restore).
+- **Countries.** Link offers US and Canadian institutions (`country_codes: ["US", "CA"]`). The Help page lists resources for both countries: 988 (both), Credit Counselling Canada, and the NFCC.
 - **Plaid Trial.** The Trial plan allows 10 production Items in total. Removing an Item does not give one back, and linking a bank twice counts twice. The API refuses a second connection to the same institution (`409 already_connected`) and removes the new Item at Plaid, so transactions never count twice. A broken connection is fixed with update mode ("Sign in to your bank").
 
 **BaaS readiness.** Phase 1 decisions keep the BaaS option open: money as integer minor units, append-only raw data, an outbox, and an audit log. A BaaS phase adds a double-entry ledger, KYC/AML, and partner bank controls. It is a separate design.

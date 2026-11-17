@@ -169,6 +169,8 @@ pub struct Me {
     pub display_name: String,
     /// The IANA time zone.
     pub time_zone: String,
+    /// The household currency (ISO 4217). Budgets and insights use it.
+    pub currency: String,
     /// Calm mode (design doc §6.1).
     pub calm_mode: bool,
     /// Notification settings (design doc §10.4).
@@ -210,7 +212,14 @@ pub struct SettingsPatch {
     pub daily_limit: Option<i16>,
     /// Insight kinds not to send.
     pub muted_kinds: Option<Vec<String>>,
+    /// The household currency, one of [`HOUSEHOLD_CURRENCIES`].
+    pub currency: Option<String>,
 }
+
+/// Currencies a household can use: the countries Plaid connects in Phase 1
+/// (US and Canada). Both have 2 decimal places, so plans keep their meaning
+/// when the currency changes.
+pub const HOUSEHOLD_CURRENCIES: &[&str] = &["USD", "CAD"];
 
 /// A registered passkey, without key material.
 #[derive(Debug, Serialize)]
@@ -679,12 +688,18 @@ impl Identity {
         .bind(session.user_id)
         .fetch_one(&mut *tx)
         .await?;
+        let currency: String =
+            sqlx::query_scalar("SELECT currency::text FROM app.households WHERE id = $1")
+                .bind(session.household_id)
+                .fetch_one(&mut *tx)
+                .await?;
         tx.commit().await?;
         Ok(Me {
             user_id: session.user_id,
             household_id: session.household_id,
             display_name,
             time_zone,
+            currency,
             calm_mode,
             notifications: NotifySettings {
                 quiet_start: quiet_start.to_jiff(),
@@ -726,6 +741,13 @@ impl Identity {
         .bind(&patch.muted_kinds)
         .execute(&mut *tx)
         .await?;
+        if let Some(currency) = &patch.currency {
+            sqlx::query("UPDATE app.households SET currency = $2 WHERE id = $1")
+                .bind(session.household_id)
+                .bind(currency)
+                .execute(&mut *tx)
+                .await?;
+        }
         tx.commit().await?;
         Ok(())
     }

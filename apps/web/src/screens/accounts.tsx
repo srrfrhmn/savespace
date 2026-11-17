@@ -70,7 +70,8 @@ function accountLine(a: Account): string {
 
 export function Accounts() {
   const queryClient = useQueryClient();
-  const calmMode = useQuery(meQuery).data?.calm_mode ?? false;
+  const me = useQuery(meQuery).data;
+  const calmMode = me?.calm_mode ?? false;
   const [revealed, setRevealed] = useState(false);
   const hideBalances = calmMode && !revealed;
   const connections = useQuery(connectionsQuery);
@@ -82,6 +83,10 @@ export function Accounts() {
   const [error, setError] = useState<string | null>(null);
 
   const syncing = connections.data?.some((c) => c.status === "syncing") ?? false;
+  // Budgets and insights count one currency (the household's).
+  const otherCurrency = me
+    ? accounts.data?.find((a) => a.currency !== me.currency)?.currency
+    : undefined;
 
   async function act(id: string, action: () => Promise<unknown>, done: string | null) {
     setBusy(id);
@@ -128,6 +133,14 @@ export function Accounts() {
       </p>
       <Notice>{message}</Notice>
       <Notice tone="problem">{error}</Notice>
+      <Notice>
+        {otherCurrency && me ? (
+          <>
+            Some accounts are in {otherCurrency}, but budgets and insights count {me.currency} only.{" "}
+            <Link to="/settings">Change the currency in Settings</Link>.
+          </>
+        ) : null}
+      </Notice>
       {calmMode ? (
         <Button variant="quiet" onPress={() => setRevealed(!revealed)}>
           {revealed ? "Hide balances" : "Show balances"}

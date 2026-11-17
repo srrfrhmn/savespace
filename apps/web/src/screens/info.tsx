@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Page } from "../ui";
 
-/** Help and support (design doc §5: "not a medical service", NFCC, 988). */
+/** Help and support (design doc §5: "not a medical service", counseling, 988). */
 export function Help() {
   return (
     <Page title="Help and support">
@@ -14,6 +14,28 @@ export function Help() {
       </section>
       <section className="card">
         <h2>If money feels too heavy</h2>
+        <p>
+          If you are in crisis or thinking about suicide, call or text <strong>988</strong>. It is
+          free and open all day, every day, in Canada and the US. In an emergency, call 911.
+        </p>
+        <h3>In Canada</h3>
+        <ul className="plain">
+          <li>
+            Free or low-cost credit counselling from a not-for-profit agency:{" "}
+            <a href="https://creditcounsellingcanada.ca/" rel="noreferrer" target="_blank">
+              Credit Counselling Canada
+            </a>
+            .
+          </li>
+          <li>
+            9-8-8 Suicide Crisis Helpline, in English and French:{" "}
+            <a href="https://988.ca/" rel="noreferrer" target="_blank">
+              988.ca
+            </a>
+            .
+          </li>
+        </ul>
+        <h3>In the US</h3>
         <ul className="plain">
           <li>
             Free or low-cost financial counseling from a nonprofit:{" "}
@@ -23,14 +45,12 @@ export function Help() {
             .
           </li>
           <li>
-            If you are in crisis or thinking about suicide, call or text <strong>988</strong> (US),
-            or chat at{" "}
+            988 Suicide and Crisis Lifeline, also by chat:{" "}
             <a href="https://988lifeline.org/" rel="noreferrer" target="_blank">
               988lifeline.org
             </a>
-            . It is free and open all day, every day.
+            .
           </li>
-          <li>In an emergency, call 911.</li>
         </ul>
       </section>
       <section className="card">
@@ -71,6 +91,10 @@ export function Privacy() {
         <ul className="plain">
           <li>Bank access tokens and check-in notes are encrypted with a key for your account.</li>
           <li>Data travels over TLS. Backups are encrypted and expire after 35 days.</li>
+          <li>
+            Your data is stored and processed in the United States (Google Cloud and Neon, US East),
+            also if you live in Canada.
+          </li>
           <li>SaveSpace does not sell or share your data, and shows no ads.</li>
           <li>Insight text comes from fixed templates. Your data is not sent to an AI service.</li>
         </ul>

@@ -147,6 +147,25 @@ export function Settings() {
           </select>
           <span className="meta">Days, weeks, and quiet hours use this time zone.</span>
         </div>
+        <div className="field">
+          <label htmlFor="currency">Currency</label>
+          <select
+            id="currency"
+            value={me.currency}
+            onChange={(e) =>
+              save("currency", { currency: e.target.value }, (m) => ({
+                ...m,
+                currency: e.target.value,
+              }))
+            }
+          >
+            <option value="CAD">Canadian dollar (CAD)</option>
+            <option value="USD">US dollar (USD)</option>
+          </select>
+          <span className="meta">
+            Budgets and insights count accounts in this currency. Plans keep their amounts.
+          </span>
+        </div>
       </section>
 
       <section className="card" aria-labelledby="notify-h">

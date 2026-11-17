@@ -170,7 +170,8 @@ async fn settings_push_export_and_delete(admin: PgPool) {
         "quiet_start": "22:30",
         "quiet_end": "07:00",
         "notify_daily_limit": 2,
-        "notify_muted_kinds": ["awareness", "awareness"]
+        "notify_muted_kinds": ["awareness", "awareness"],
+        "currency": "CAD"
     });
     let (status, me) = send(
         &app,
@@ -182,7 +183,18 @@ async fn settings_push_export_and_delete(admin: PgPool) {
     assert_eq!(me["notifications"]["quiet_start"], "22:30");
     assert_eq!(me["notifications"]["daily_limit"], 2);
     assert_eq!(me["notifications"]["muted_kinds"], json!(["awareness"]));
+    assert_eq!(me["currency"], "CAD");
+    let (_, budget) = send(
+        &app,
+        request(Method::GET, "/v1/budgets/2026-11", &cookie, None),
+    )
+    .await;
+    assert_eq!(
+        budget["currency"], "CAD",
+        "budgets follow the household currency"
+    );
     for (body, code) in [
+        (json!({ "currency": "EUR" }), "currency_invalid"),
         (json!({ "time_zone": "Mars/Base" }), "time_zone_invalid"),
         (json!({ "quiet_start": "25:00" }), "time_invalid"),
         (json!({ "notify_daily_limit": 9 }), "limit_invalid"),
