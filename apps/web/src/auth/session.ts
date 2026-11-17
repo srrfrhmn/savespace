@@ -60,7 +60,61 @@ export async function setUpOwner(input: {
       },
     }),
   );
+  // Best effort: start with this browser's time zone, and its currency for
+  // Canada. Both can change in Settings.
+  const zone = browserTimeZone();
+  if (zone) {
+    await api
+      .PATCH("/me", { body: { time_zone: zone, currency: currencyForZone(zone) } })
+      .catch(() => undefined);
+  }
   return result.recovery_codes;
+}
+
+function browserTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
+/** IANA zones in Canada (tzdb zone1970.tab, CA). */
+const CANADA_ZONES = new Set([
+  "America/St_Johns",
+  "America/Halifax",
+  "America/Glace_Bay",
+  "America/Moncton",
+  "America/Goose_Bay",
+  "America/Toronto",
+  "America/Iqaluit",
+  "America/Winnipeg",
+  "America/Resolute",
+  "America/Rankin_Inlet",
+  "America/Regina",
+  "America/Swift_Current",
+  "America/Edmonton",
+  "America/Cambridge_Bay",
+  "America/Inuvik",
+  "America/Dawson_Creek",
+  "America/Fort_Nelson",
+  "America/Whitehorse",
+  "America/Dawson",
+  "America/Vancouver",
+  "America/Atikokan",
+  "America/Blanc-Sablon",
+  "America/Creston",
+  "America/Nipigon",
+  "America/Thunder_Bay",
+  "America/Rainy_River",
+  "America/Pangnirtung",
+  "America/Yellowknife",
+  "America/Montreal",
+]);
+
+/** `CAD` for a Canadian time zone, else `USD`. */
+export function currencyForZone(zone: string): "CAD" | "USD" {
+  return CANADA_ZONES.has(zone) ? "CAD" : "USD";
 }
 
 export async function signOut(): Promise<void> {

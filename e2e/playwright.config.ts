@@ -17,6 +17,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:8080",
     trace: "retain-on-failure",
+    // The sandbox bank is in the US (USD). Setup picks the currency from the
+    // browser's time zone.
+    timezoneId: "America/New_York",
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
     // Locally, `E2E_CHANNEL=msedge` uses the installed Edge.

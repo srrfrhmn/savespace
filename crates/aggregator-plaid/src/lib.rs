@@ -314,7 +314,8 @@ impl Aggregator for PlaidClient {
         let mut body = json!({
             "client_name": "SaveSpace",
             "language": "en",
-            "country_codes": ["US"],
+            // Phase 1 runs in the US and Canada (Plaid Trial plan countries).
+            "country_codes": ["US", "CA"],
             "user": { "client_user_id": request.client_user_id },
         });
         if let Some(token) = &request.update_access_token {

@@ -34,6 +34,9 @@ pub struct Me {
     pub display_name: String,
     /// The IANA time zone, for example `America/New_York`.
     pub time_zone: String,
+    /// The household currency: `USD` or `CAD`. Budgets and insights count
+    /// transactions in this currency.
+    pub currency: String,
     /// Calm mode: hide exact balances until the person taps.
     pub calm_mode: bool,
     /// Notification settings.
@@ -110,6 +113,7 @@ async fn get_me(State(state): State<AppState>, auth: Auth) -> Result<Json<Me>, A
         household_id: ids::encode(ids::HOUSEHOLD, me.household_id),
         display_name: me.display_name,
         time_zone: me.time_zone,
+        currency: me.currency,
         calm_mode: me.calm_mode,
         notifications: NotificationSettings {
             quiet_start: hh_mm(me.notifications.quiet_start),
@@ -148,6 +152,8 @@ pub struct UpdateMeRequest {
     pub notify_daily_limit: Option<i16>,
     /// Insight kinds not to send: `concern`, `anticipation`, `awareness`.
     pub notify_muted_kinds: Option<Vec<String>>,
+    /// The household currency: `USD` or `CAD`.
+    pub currency: Option<String>,
 }
 
 fn parse_time(value: &str, param: &'static str) -> Result<jiff::civil::Time, ApiError> {
@@ -190,7 +196,13 @@ impl UpdateMeRequest {
             )
             .param("notify_muted_kinds"));
         }
+        if let Some(currency) = &self.currency
+            && !domain_identity::HOUSEHOLD_CURRENCIES.contains(&currency.as_str())
+        {
+            return Err(ApiError::invalid("currency_invalid", "Use USD or CAD.").param("currency"));
+        }
         Ok(domain_identity::SettingsPatch {
+            currency: self.currency,
             calm_mode: self.calm_mode,
             time_zone: self.time_zone,
             quiet_start: self

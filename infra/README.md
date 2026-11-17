@@ -119,7 +119,7 @@ The next deploy sends traffic to the new revision again. Migrations do not roll 
 
 ### Go live: Plaid production (Trial plan)
 
-The Trial plan is free: 10 production Items in total, Transactions included. Removing an Item does not give one back, and linking the same bank twice uses two.
+The Trial plan is free for developers in the US and Canada: 10 production Items in total, Transactions included. Link shows US and Canadian banks. Removing an Item does not give one back, and linking the same bank twice uses two.
 
 1. The owner applies for the Trial plan in the Plaid dashboard and gets the production secret. The client ID stays the same.
 2. On the live site, remove the sandbox connections (Accounts, **Remove**). Sandbox tokens do not work against production.

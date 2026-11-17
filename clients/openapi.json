@@ -2526,6 +2526,7 @@
           "household_id",
           "display_name",
           "time_zone",
+          "currency",
           "calm_mode",
           "notifications",
           "step_up_until",
@@ -2536,6 +2537,10 @@
           "calm_mode": {
             "type": "boolean",
             "description": "Calm mode: hide exact balances until the person taps."
+          },
+          "currency": {
+            "type": "string",
+            "description": "The household currency: `USD` or `CAD`. Budgets and insights count\ntransactions in this currency."
           },
           "display_name": {
             "type": "string",
@@ -3492,6 +3497,13 @@
               "null"
             ],
             "description": "Calm mode: hide exact balances until the person taps."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The household currency: `USD` or `CAD`."
           },
           "notify_daily_limit": {
             "type": [
