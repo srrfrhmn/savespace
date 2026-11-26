@@ -44,7 +44,7 @@ COPY apps/web apps/web
 RUN pnpm --filter @savespace/web build
 
 # Runtime: no shell, no package manager, non-root user.
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cb87acc574abe719b6e5c547384defa2f7b1f24af9605d3f618cf852495d8be2
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:29ee70762214fe8190cea04ef1c0a84a8365879e047ce8f911ae5a5ab2355fa2
 COPY --from=builder /src/target/release/api /src/target/release/worker /app/
 COPY --from=web /src/apps/web/dist /app/web
 ENV SAVESPACE_API_ADDR=0.0.0.0:8080 \
